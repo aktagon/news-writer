@@ -1,0 +1,5 @@
+# articles.yaml
+items:
+  - id: 1
+    source_url: "https://kmicinski.com/functional-programming/2025/08/01/loops/"
+    discussion_url: "https://news.ycombinator.com/item?id=44837949"

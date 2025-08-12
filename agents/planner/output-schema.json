@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {"type": "string"},
+    "key_points": {"type": "array", "items": {"type": "string"}},
+    "structure": {"type": "array", "items": {"type": "string"}},
+    "target": {
+      "type": "object",
+      "properties": {
+        "word_count": {"type": "integer"},
+        "tone": {"type": "string"}
+      },
+      "required": ["word_count", "tone"]
+    }
+  },
+  "required": ["title", "key_points", "structure", "target"]
+}
