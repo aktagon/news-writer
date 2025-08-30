@@ -19,25 +19,13 @@ Load Config (YAML/CSV) → Fetch Content → Plan Article → Write Article → 
 ```
 
 The system uses two AI agents:
+
 - **Planner Agent**: Analyzes source content and creates a structured plan
 - **Writer Agent**: Follows the plan to create the final distilled article
 
 ## Installation
 
-### Option 1: Homebrew (Recommended)
-
-```bash
-# Add tap
-brew tap aktagon/news-writer https://github.com/aktagon/news-writer
-
-# Install
-brew install news-writer
-
-# Set up environment
-export ANTHROPIC_API_KEY=your_api_key_here
-```
-
-### Option 2: Download Binary
+### Option 1: Download Binary
 
 Download the latest binary from [releases](https://github.com/aktagon/news-writer/releases):
 
@@ -58,13 +46,21 @@ chmod +x news-writer
 sudo mv news-writer /usr/local/bin/
 ```
 
-### Option 3: Build from Source
+### Option 2: Build from Source
 
 ```bash
 # Clone and build
 git clone https://github.com/aktagon/news-writer.git
 cd news-writer
-go build -o news-writer .
+
+# Install dependencies
+make deps
+
+# Build binary
+make build
+
+# Install to PATH (requires sudo)
+sudo make install
 
 # Set up environment
 export ANTHROPIC_API_KEY=your_api_key_here
@@ -117,14 +113,17 @@ Articles are saved as `articles/{date}-{slug}.md`:
 
 ```markdown
 # React Performance: Essential Optimization Techniques
-*Source: [react.dev](https://react.dev/learn/thinking-in-react)*
+
+_Source: [react.dev](https://react.dev/learn/thinking-in-react)_
 
 React apps slow down as they grow. Here are the techniques that make the biggest impact.
 
 ## Memoization Techniques
+
 Use React.memo() for expensive components...
 
 ## Conclusion
+
 - Start with React.memo() for expensive renders
 - Implement route-based code splitting
 - Use React DevTools profiler to measure impact
@@ -153,11 +152,17 @@ The header row is optional and will be automatically detected and skipped.
 ## Development
 
 ```bash
-# Development run (clean, build, setup, run)
+# Install dependencies
+make deps
+
+# Development run (clean, install deps, build, setup, run)
 make dev
 
 # Build only
 make build
+
+# Install to PATH
+make install
 
 # Clean artifacts
 make clean

@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -19,16 +20,38 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed agents/planner/system-prompt.md
+var plannerSystemPrompt string
+
+//go:embed agents/writer/system-prompt.md
+var writerSystemPrompt string
+
+//go:embed agents/planner/output-schema.json
+var plannerSchema string
+
+//go:embed config/settings.yaml
+var defaultSettings string
+
+//go:embed config/news-article-template.md
+var defaultTemplate string
+
 // ArticleProcessor handles the main workflow
 type ArticleProcessor struct {
 	plannerAgent *agents.ChatAgent
 	writerAgent  *agents.ChatAgent
 	fetcher      *ContentFetcher
 	settings     *Settings
+	overwrite    bool
 }
 
 // NewArticleProcessor creates a new processor with configured agents
 func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
+	// Ensure embedded config files are written to config/ on first run
+	err := ensureConfigExists()
+	if err != nil {
+		return nil, fmt.Errorf("ensuring config files exist: %w", err)
+	}
+
 	// Load settings
 	settings, err := loadSettings("config/settings.yaml")
 	if err != nil {
@@ -55,7 +78,13 @@ func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
 		writerAgent:  writerAgent,
 		fetcher:      fetcher,
 		settings:     settings,
+		overwrite:    false,
 	}, nil
+}
+
+// SetOverwrite sets the overwrite flag
+func (ap *ArticleProcessor) SetOverwrite(overwrite bool) {
+	ap.overwrite = overwrite
 }
 
 // ProcessArticles processes all articles from the config file or URL
@@ -91,8 +120,6 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 // processItem processes a single article item
 func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
-	filename := ap.generateFilename(item)
-
 	// Skip if article for this URL already exists
 	if existingFile := ap.findExistingArticle(item.URL); existingFile != "" {
 		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
@@ -118,6 +145,19 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 		return ProcessingResult{
 			URL:   item.URL,
 			Error: fmt.Errorf("generating plan: %w", err),
+		}
+	}
+
+	// Generate filename using the plan title
+	filename := ap.generateFilenameFromTitle(plan.Title)
+
+	// Check if file exists and skip if overwrite is false
+	if !ap.overwrite && ap.fileExists(filename) {
+		log.Printf("Skipping %s: file exists (%s)", item.URL, filename)
+		return ProcessingResult{
+			URL:      item.URL,
+			Success:  true,
+			Filename: filename,
 		}
 	}
 
@@ -300,6 +340,13 @@ func (ap *ArticleProcessor) generateFilename(item ArticleItem) string {
 	return fmt.Sprintf("%s/%s-%s.md", ap.settings.OutputDirectory, currentDate, slug)
 }
 
+// generateFilenameFromTitle creates a filename from the article title
+func (ap *ArticleProcessor) generateFilenameFromTitle(title string) string {
+	slug := generateSlugFromTitle(title)
+	currentDate := time.Now().Format("2006-01-02")
+	return fmt.Sprintf("%s/%s-%s.md", ap.settings.OutputDirectory, currentDate, slug)
+}
+
 // fileExists checks if a file already exists
 func (ap *ArticleProcessor) fileExists(filename string) bool {
 	_, err := os.Stat(filename)
@@ -387,22 +434,63 @@ func generateSlug(url string) string {
 	return "article"
 }
 
-// loadSystemPrompt loads a system prompt from a file
+// generateSlugFromTitle creates a URL slug from an article title
+func generateSlugFromTitle(title string) string {
+	if title == "" {
+		return "article"
+	}
+
+	// Convert to lowercase and replace spaces/special chars with hyphens
+	slug := strings.ToLower(title)
+	slug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(slug, "-")
+	slug = regexp.MustCompile(`-+`).ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+
+	// Limit length to avoid filesystem issues
+	if len(slug) > 50 {
+		slug = slug[:50]
+		slug = strings.Trim(slug, "-")
+	}
+
+	if slug == "" {
+		return "article"
+	}
+
+	return slug
+}
+
+// loadSystemPrompt loads a system prompt from config/ or embedded data
 func (ap *ArticleProcessor) loadSystemPrompt(agentName string) (string, error) {
-	filename := fmt.Sprintf("agents/%s/system-prompt.md", agentName)
+	filename := fmt.Sprintf("config/%s-system-prompt.md", agentName)
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return "", fmt.Errorf("reading system prompt %s: %w", filename, err)
+		// Fallback to embedded data if config file doesn't exist
+		switch agentName {
+		case "planner":
+			return strings.TrimSpace(plannerSystemPrompt), nil
+		case "writer":
+			return strings.TrimSpace(writerSystemPrompt), nil
+		default:
+			return "", fmt.Errorf("unknown agent: %s", agentName)
+		}
 	}
 	return strings.TrimSpace(string(data)), nil
 }
 
-// loadSchema loads a JSON schema from a file
+// loadSchema loads a JSON schema from config/ or embedded data
 func (ap *ArticleProcessor) loadSchema(agentName string) (string, error) {
-	filename := fmt.Sprintf("agents/%s/output-schema.json", agentName)
+	filename := fmt.Sprintf("config/%s-output-schema.json", agentName)
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return "", fmt.Errorf("reading schema %s: %w", filename, err)
+		// Fallback to embedded data if config file doesn't exist
+		switch agentName {
+		case "planner":
+			return strings.TrimSpace(plannerSchema), nil
+		case "writer":
+			return "", fmt.Errorf("writer agent does not use schema")
+		default:
+			return "", fmt.Errorf("unknown agent: %s", agentName)
+		}
 	}
 	return strings.TrimSpace(string(data)), nil
 }
@@ -418,6 +506,7 @@ func extractDomain(url string) string {
 }
 
 // loadSettings loads settings from YAML file
+// TODO: Create a sample configuration file in config/
 func loadSettings(settingsPath string) (*Settings, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -442,4 +531,60 @@ func loadSettings(settingsPath string) (*Settings, error) {
 	}
 
 	return &settings, nil
+}
+
+// ensureConfigExists writes embedded config files to config/ directory if they don't exist
+func ensureConfigExists() error {
+	// Ensure config directory exists
+	err := os.MkdirAll("config", 0755)
+	if err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	// Write settings.yaml
+	settingsFile := "config/settings.yaml"
+	if _, err := os.Stat(settingsFile); os.IsNotExist(err) {
+		err = os.WriteFile(settingsFile, []byte(defaultSettings), 0644)
+		if err != nil {
+			return fmt.Errorf("writing settings.yaml: %w", err)
+		}
+	}
+
+	// Write planner system prompt
+	plannerFile := "config/planner-system-prompt.md"
+	if _, err := os.Stat(plannerFile); os.IsNotExist(err) {
+		err = os.WriteFile(plannerFile, []byte(plannerSystemPrompt), 0644)
+		if err != nil {
+			return fmt.Errorf("writing planner system prompt: %w", err)
+		}
+	}
+
+	// Write writer system prompt
+	writerFile := "config/writer-system-prompt.md"
+	if _, err := os.Stat(writerFile); os.IsNotExist(err) {
+		err = os.WriteFile(writerFile, []byte(writerSystemPrompt), 0644)
+		if err != nil {
+			return fmt.Errorf("writing writer system prompt: %w", err)
+		}
+	}
+
+	// Write planner schema
+	schemaFile := "config/planner-output-schema.json"
+	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
+		err = os.WriteFile(schemaFile, []byte(plannerSchema), 0644)
+		if err != nil {
+			return fmt.Errorf("writing planner schema: %w", err)
+		}
+	}
+
+	// Write template file
+	templateFile := "config/news-article-template.md"
+	if _, err := os.Stat(templateFile); os.IsNotExist(err) {
+		err = os.WriteFile(templateFile, []byte(defaultTemplate), 0644)
+		if err != nil {
+			return fmt.Errorf("writing template file: %w", err)
+		}
+	}
+
+	return nil
 }

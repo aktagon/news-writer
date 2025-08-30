@@ -1,18 +1,23 @@
 # Makefile
-.PHONY: build run run-url clean install
+.PHONY: build run run-url clean deps install
 
 # Build the application
 build:
-	go build -o bin/news-writer .
+	go build -buildvcs=false -o bin/news-writer .
 
 # Run with default config
 run: build
 	./bin/news-writer -config config/news-articles.yaml
 
 # Install dependencies
-install:
+deps:
 	go mod tidy
 	go mod download
+
+# Install binary to PATH
+install: build
+	cp bin/news-writer /usr/local/bin/news-writer
+	chmod +x /usr/local/bin/news-writer
 
 # Clean build artifacts
 clean:
@@ -36,4 +41,4 @@ example-sheets: build
 	./bin/news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
 
 # Development run (builds and runs)
-dev: clean build setup run
+dev: clean deps build setup run

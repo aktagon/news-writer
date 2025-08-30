@@ -13,6 +13,7 @@ func main() {
 		configPath      = flag.String("config", "config/news-articles.yaml", "Path to the articles configuration file")
 		newsArticlesURL = flag.String("news-articles-url", "", "URL to CSV file containing article URLs")
 		apiKey          = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
+		overwrite       = flag.Bool("overwrite", false, "Overwrite existing article files")
 	)
 	flag.Parse()
 
@@ -41,6 +42,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create processor: %v", err)
 	}
+
+	// Set overwrite flag
+	processor.SetOverwrite(*overwrite)
 
 	// Process articles
 	log.Printf("Starting article distillation from %s", configSource)

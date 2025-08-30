@@ -1,0 +1,9 @@
+output_directory: articles
+template_path: config/news-article-template.md
+agents:
+  planner:
+    max_tokens: 2000
+    temperature: 0.0
+  writer:
+    max_tokens: 3000
+    temperature: 0.3

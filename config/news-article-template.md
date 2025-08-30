@@ -13,4 +13,3 @@ source_domain: "{{.SourceDomain}}"
 
 {{.Content}}
 
-*Source: [{{.Source}}]({{.SourceURL}})*
