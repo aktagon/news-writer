@@ -24,15 +24,53 @@ The system uses two AI agents:
 
 ## Installation
 
+### Option 1: Homebrew (Recommended)
+
 ```bash
-# Install dependencies
-make install
+# Add tap
+brew tap aktagon/news-writer https://github.com/aktagon/news-writer
+
+# Install
+brew install news-writer
+
+# Set up environment
+export ANTHROPIC_API_KEY=your_api_key_here
+```
+
+### Option 2: Download Binary
+
+Download the latest binary from [releases](https://github.com/aktagon/news-writer/releases):
+
+```bash
+# macOS (ARM)
+curl -L https://github.com/aktagon/news-writer/releases/latest/download/news-writer-darwin-arm64 -o news-writer
+chmod +x news-writer
+sudo mv news-writer /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/aktagon/news-writer/releases/latest/download/news-writer-darwin-amd64 -o news-writer
+chmod +x news-writer
+sudo mv news-writer /usr/local/bin/
+
+# Linux
+curl -L https://github.com/aktagon/news-writer/releases/latest/download/news-writer-linux-amd64 -o news-writer
+chmod +x news-writer
+sudo mv news-writer /usr/local/bin/
+```
+
+### Option 3: Build from Source
+
+```bash
+# Clone and build
+git clone https://github.com/aktagon/news-writer.git
+cd news-writer
+go build -o news-writer .
 
 # Set up environment
 export ANTHROPIC_API_KEY=your_api_key_here
 
 # Create articles directory
-make setup
+mkdir -p articles
 ```
 
 ## Usage
@@ -60,17 +98,17 @@ https://example.com/article2
 Run the distiller:
 
 ```bash
-# Build and run with default YAML config
-make run
+# Run with default YAML config
+news-writer -config articles.yaml
 
 # Run with custom YAML file
-make run-config CONFIG=my-articles.yaml
+news-writer -config my-articles.yaml
 
 # Run with CSV URL
-./bin/news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
+news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
 
-# Or run directly with YAML
-./bin/news-writer -config articles.yaml -api-key your_key
+# Specify API key directly
+news-writer -config articles.yaml -api-key your_key
 ```
 
 ## Output
