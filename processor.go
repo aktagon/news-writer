@@ -93,13 +93,13 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	filename := ap.generateFilename(item)
 
-	// Skip if file already exists
-	if ap.fileExists(filename) {
-		log.Printf("Skipping %s: article exists", item.URL)
+	// Skip if article for this URL already exists
+	if existingFile := ap.findExistingArticle(item.URL); existingFile != "" {
+		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
 		return ProcessingResult{
 			URL:      item.URL,
 			Success:  true,
-			Filename: filename,
+			Filename: existingFile,
 		}
 	}
 
@@ -304,6 +304,29 @@ func (ap *ArticleProcessor) generateFilename(item ArticleItem) string {
 func (ap *ArticleProcessor) fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil
+}
+
+// findExistingArticle checks if an article for the given URL already exists by checking frontmatter
+func (ap *ArticleProcessor) findExistingArticle(url string) string {
+	files, err := filepath.Glob(filepath.Join(ap.settings.OutputDirectory, "*.md"))
+	if err != nil {
+		return ""
+	}
+
+	searchPattern := fmt.Sprintf(`source_url: "%s"`, url)
+
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+
+		if strings.Contains(string(content), searchPattern) {
+			return file
+		}
+	}
+
+	return ""
 }
 
 // saveArticle saves the article to a markdown file using the template

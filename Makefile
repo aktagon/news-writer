@@ -3,11 +3,11 @@
 
 # Build the application
 build:
-	go build -o bin/article-distiller .
+	go build -o bin/news-writer .
 
 # Run with default config
 run: build
-	./bin/article-distiller -config config/news-articles.yaml
+	./bin/news-writer -config config/news-articles.yaml
 
 # Install dependencies
 install:
@@ -25,15 +25,15 @@ setup:
 
 # Run with custom config
 run-config: build
-	./bin/article-distiller -config $(CONFIG)
+	./bin/news-writer -config $(CONFIG)
 
 # Run with CSV URL
 run-url: build
-	./bin/article-distiller -news-articles-url $(URL)
+	./bin/news-writer -news-articles-url $(URL)
 
 # Example: Run with Google Sheets CSV
 example-sheets: build
-	./bin/article-distiller -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
+	./bin/news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
 
 # Development run (builds and runs)
 dev: clean build setup run

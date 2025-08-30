@@ -37,8 +37,8 @@ https://example.com/article3
 ```
 
 **Usage:**
-- YAML: `./article-distiller -config articles.yaml`
-- CSV URL: `./article-distiller -news-articles-url "https://docs.google.com/spreadsheets/d/.../pub?output=csv"`
+- YAML: `./news-writer -config articles.yaml`
+- CSV URL: `./news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/.../pub?output=csv"`
 
 ## Agents
 

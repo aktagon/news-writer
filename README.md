@@ -67,10 +67,10 @@ make run
 make run-config CONFIG=my-articles.yaml
 
 # Run with CSV URL
-./bin/article-distiller -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
+./bin/news-writer -news-articles-url "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRHf3kQ8z8MqcodGRHoX00t56ewg0JTXF-BNz2E2gDSz7KCnzWcvupT-0OgAdJK-CBWpHjnIpzpmwo/pub?gid=0&single=true&output=csv"
 
 # Or run directly with YAML
-./bin/article-distiller -config articles.yaml -api-key your_key
+./bin/news-writer -config articles.yaml -api-key your_key
 ```
 
 ## Output
