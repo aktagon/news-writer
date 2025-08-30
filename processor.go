@@ -3,9 +3,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,9 +58,17 @@ func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
 	}, nil
 }
 
-// ProcessArticles processes all articles from the config file
-func (ap *ArticleProcessor) ProcessArticles(configPath string) ([]ProcessingResult, error) {
-	config, err := ap.loadConfig(configPath)
+// ProcessArticles processes all articles from the config file or URL
+func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingResult, error) {
+	var config *Config
+	var err error
+
+	if strings.HasPrefix(configSource, "http://") || strings.HasPrefix(configSource, "https://") {
+		config, err = ap.loadConfigFromURL(configSource)
+	} else {
+		config, err = ap.loadConfig(configSource)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
@@ -224,6 +234,63 @@ func (ap *ArticleProcessor) loadConfig(configPath string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// loadConfigFromURL loads configuration from a CSV URL
+func (ap *ArticleProcessor) loadConfigFromURL(url string) (*Config, error) {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Fetch the CSV content
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetching CSV from URL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP error %d when fetching CSV", resp.StatusCode)
+	}
+
+	// Parse CSV
+	reader := csv.NewReader(resp.Body)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("parsing CSV: %w", err)
+	}
+
+	if len(records) == 0 {
+		return nil, fmt.Errorf("CSV file is empty")
+	}
+
+	// Skip header row if it exists (check if first row contains "url" header)
+	startIdx := 0
+	if len(records) > 0 && len(records[0]) > 0 && strings.ToLower(records[0][0]) == "url" {
+		startIdx = 1
+	}
+
+	// Convert CSV rows to Config struct
+	config := &Config{
+		Items: make([]ArticleItem, 0, len(records)-startIdx),
+	}
+
+	for i := startIdx; i < len(records); i++ {
+		row := records[i]
+		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
+			continue // Skip empty rows
+		}
+
+		url := strings.TrimSpace(row[0])
+		if url != "" {
+			config.Items = append(config.Items, ArticleItem{
+				URL: url,
+			})
+		}
+	}
+
+	return config, nil
 }
 
 // generateFilename creates a filename from the item

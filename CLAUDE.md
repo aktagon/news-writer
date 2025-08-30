@@ -16,20 +16,29 @@ flowchart TD
     B --> I[End]
 ```
 
-## Input File: `articles.yaml`
+## Input Sources
+
+### Option 1: YAML File (`articles.yaml`)
 
 ```yaml
 items:
-  - id: 1
-    source_url: "https://example.com/article1"
-    discussion_url: "https://example.com/discussion1"
-  - id: 2
-    source_url: "https://example.com/article2"
-    discussion_url: "https://example.com/discussion2"
-  - id: 3
-    source_url: "https://example.com/article3"
-    discussion_url: "https://example.com/discussion3"
+  - url: "https://example.com/article1"
+  - url: "https://example.com/article2"
+  - url: "https://example.com/article3"
 ```
+
+### Option 2: CSV URL (Google Sheets)
+
+```csv
+url
+https://example.com/article1
+https://example.com/article2
+https://example.com/article3
+```
+
+**Usage:**
+- YAML: `./article-distiller -config articles.yaml`
+- CSV URL: `./article-distiller -news-articles-url "https://docs.google.com/spreadsheets/d/.../pub?output=csv"`
 
 ## Agents
 
@@ -90,9 +99,11 @@ _Source: [link](url)_
 
 1. **Citations:** Link to source, don't copy large blocks
 2. **Length:** 500-1500 words max
-3. **Filename:** `articles/{id}-{slug}.md`
+3. **Filename:** `articles/{date}-{slug}.md` (date format: 2006-01-02)
 4. **Skip:** If file already exists
 5. **Fail gracefully:** Log errors, continue processing
+6. **Input validation:** URLs must start with http:// or https://
+7. **CSV format:** First column contains URLs, header row optional
 
 ## Example
 

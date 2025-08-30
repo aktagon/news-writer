@@ -10,10 +10,23 @@ import (
 func main() {
 	// Command line flags
 	var (
-		configPath = flag.String("config", "config/news-articles.yaml", "Path to the articles configuration file")
-		apiKey     = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
+		configPath      = flag.String("config", "config/news-articles.yaml", "Path to the articles configuration file")
+		newsArticlesURL = flag.String("news-articles-url", "", "URL to CSV file containing article URLs")
+		apiKey          = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
 	)
 	flag.Parse()
+
+	// Validate that only one config source is provided
+	if *configPath != "config/news-articles.yaml" && *newsArticlesURL != "" {
+		log.Fatal("Cannot specify both -config and -news-articles-url flags")
+	}
+
+	var configSource string
+	if *newsArticlesURL != "" {
+		configSource = *newsArticlesURL
+	} else {
+		configSource = *configPath
+	}
 
 	// Get API key from environment if not provided
 	if *apiKey == "" {
@@ -30,8 +43,8 @@ func main() {
 	}
 
 	// Process articles
-	log.Printf("Starting article distillation from %s", *configPath)
-	results, err := processor.ProcessArticles(*configPath)
+	log.Printf("Starting article distillation from %s", configSource)
+	results, err := processor.ProcessArticles(configSource)
 	if err != nil {
 		log.Fatalf("Failed to process articles: %v", err)
 	}
