@@ -10,7 +10,7 @@ import (
 func main() {
 	// Command line flags
 	var (
-		configPath = flag.String("config", "articles.yaml", "Path to the articles configuration file")
+		configPath = flag.String("config", "config/news-articles.yaml", "Path to the articles configuration file")
 		apiKey     = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
 	)
 	flag.Parse()
@@ -48,7 +48,7 @@ func main() {
 	}
 
 	log.Printf("Processing complete: %d successful, %d failed", successful, failed)
-	
+
 	if failed > 0 {
 		os.Exit(1)
 	}

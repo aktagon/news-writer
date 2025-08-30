@@ -5,9 +5,7 @@ import "time"
 
 // ArticleItem represents a single article to process
 type ArticleItem struct {
-	ID            int    `yaml:"id"`
-	SourceURL     string `yaml:"source_url"`
-	DiscussionURL string `yaml:"discussion_url,omitempty"`
+	URL string `yaml:"url"`
 }
 
 // Config represents the YAML configuration structure
@@ -17,10 +15,13 @@ type Config struct {
 
 // Plan represents the planner agent output
 type Plan struct {
-	Title     string   `json:"title"`
-	KeyPoints []string `json:"key_points"`
-	Structure []string `json:"structure"`
-	Target    Target   `json:"target"`
+	Title      string   `json:"title"`
+	Deck       string   `json:"deck"`
+	KeyPoints  []string `json:"key_points"`
+	Structure  []string `json:"structure"`
+	Categories []string `json:"categories"`
+	Tags       []string `json:"tags"`
+	Target     Target   `json:"target"`
 }
 
 // Target represents the target specifications for the article
@@ -31,17 +32,39 @@ type Target struct {
 
 // Article represents the final article output
 type Article struct {
-	Title     string    `json:"title"`
-	Source    string    `json:"source"`
-	SourceURL string    `json:"source_url"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	Title        string    `json:"title"`
+	Source       string    `json:"source"`
+	SourceURL    string    `json:"source_url"`
+	Content      string    `json:"content"`
+	CreatedAt    time.Time `json:"created_at"`
+	Deck         string    `json:"deck"`
+	Categories   []string  `json:"categories"`
+	Tags         []string  `json:"tags"`
+	Author       string    `json:"author"`
+	AuthorTitle  string    `json:"author_title"`
+	SourceDomain string    `json:"source_domain"`
 }
 
 // ProcessingResult tracks the outcome of processing each item
 type ProcessingResult struct {
-	ID       int
+	URL      string
 	Success  bool
 	Filename string
 	Error    error
+}
+
+// AgentSettings represents settings for a single agent
+type AgentSettings struct {
+	MaxTokens   int     `yaml:"max_tokens"`
+	Temperature float64 `yaml:"temperature"`
+}
+
+// Settings represents the application settings
+type Settings struct {
+	OutputDirectory string `yaml:"output_directory"`
+	TemplatePath    string `yaml:"template_path"`
+	Agents          struct {
+		Planner AgentSettings `yaml:"planner"`
+		Writer  AgentSettings `yaml:"writer"`
+	} `yaml:"agents"`
 }

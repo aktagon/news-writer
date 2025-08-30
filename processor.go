@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/aktagon/llmkit/anthropic/agents"
@@ -20,10 +22,17 @@ type ArticleProcessor struct {
 	plannerAgent *agents.ChatAgent
 	writerAgent  *agents.ChatAgent
 	fetcher      *ContentFetcher
+	settings     *Settings
 }
 
 // NewArticleProcessor creates a new processor with configured agents
 func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
+	// Load settings
+	settings, err := loadSettings("config/settings.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("loading settings: %w", err)
+	}
+
 	// Create planner agent
 	plannerAgent, err := agents.New(apiKey)
 	if err != nil {
@@ -43,6 +52,7 @@ func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
 		plannerAgent: plannerAgent,
 		writerAgent:  writerAgent,
 		fetcher:      fetcher,
+		settings:     settings,
 	}, nil
 }
 
@@ -62,7 +72,7 @@ func (ap *ArticleProcessor) ProcessArticles(configPath string) ([]ProcessingResu
 		if result.Success {
 			log.Printf("✓ Generated: %s", result.Filename)
 		} else {
-			log.Printf("✗ Failed %d: %v", result.ID, result.Error)
+			log.Printf("✗ Failed %s: %v", result.URL, result.Error)
 		}
 	}
 
@@ -75,46 +85,37 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 
 	// Skip if file already exists
 	if ap.fileExists(filename) {
-		log.Printf("Skipping %d: article exists", item.ID)
+		log.Printf("Skipping %s: article exists", item.URL)
 		return ProcessingResult{
-			ID:       item.ID,
+			URL:      item.URL,
 			Success:  true,
 			Filename: filename,
 		}
 	}
 
 	// Fetch source content
-	sourceContent, err := ap.fetcher.FetchContent(item.SourceURL)
+	sourceContent, err := ap.fetcher.FetchContent(item.URL)
 	if err != nil {
 		return ProcessingResult{
-			ID:    item.ID,
+			URL:   item.URL,
 			Error: fmt.Errorf("fetching source: %w", err),
 		}
 	}
 
-	// Fetch discussion content if provided
-	var discussionContent string
-	if item.DiscussionURL != "" {
-		discussionContent, err = ap.fetcher.FetchContent(item.DiscussionURL)
-		if err != nil {
-			log.Printf("Warning: failed to fetch discussion for %d: %v", item.ID, err)
-		}
-	}
-
 	// Generate plan
-	plan, err := ap.generatePlan(sourceContent, discussionContent)
+	plan, err := ap.generatePlan(sourceContent)
 	if err != nil {
 		return ProcessingResult{
-			ID:    item.ID,
+			URL:   item.URL,
 			Error: fmt.Errorf("generating plan: %w", err),
 		}
 	}
 
 	// Generate article
-	article, err := ap.generateArticle(sourceContent, plan, discussionContent, item.SourceURL)
+	article, err := ap.generateArticle(sourceContent, plan, item.URL)
 	if err != nil {
 		return ProcessingResult{
-			ID:    item.ID,
+			URL:   item.URL,
 			Error: fmt.Errorf("generating article: %w", err),
 		}
 	}
@@ -123,29 +124,26 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	err = ap.saveArticle(filename, article)
 	if err != nil {
 		return ProcessingResult{
-			ID:    item.ID,
+			URL:   item.URL,
 			Error: fmt.Errorf("saving article: %w", err),
 		}
 	}
 
 	return ProcessingResult{
-		ID:       item.ID,
+		URL:      item.URL,
 		Success:  true,
 		Filename: filename,
 	}
 }
 
 // generatePlan uses the planner agent to create a plan
-func (ap *ArticleProcessor) generatePlan(sourceContent, discussionContent string) (*Plan, error) {
+func (ap *ArticleProcessor) generatePlan(sourceContent string) (*Plan, error) {
 	systemPrompt, err := ap.loadSystemPrompt("planner")
 	if err != nil {
 		return nil, fmt.Errorf("loading planner system prompt: %w", err)
 	}
 
 	prompt := fmt.Sprintf("Source content:\n%s", sourceContent)
-	if discussionContent != "" {
-		prompt += fmt.Sprintf("\n\nDiscussion content:\n%s", discussionContent)
-	}
 
 	schema, err := ap.loadSchema("planner")
 	if err != nil {
@@ -155,7 +153,8 @@ func (ap *ArticleProcessor) generatePlan(sourceContent, discussionContent string
 	response, err := ap.plannerAgent.Chat(prompt, &agents.ChatOptions{
 		SystemPrompt: systemPrompt,
 		Schema:       schema,
-		MaxTokens:    2000,
+		MaxTokens:    ap.settings.Agents.Planner.MaxTokens,
+		Temperature:  ap.settings.Agents.Planner.Temperature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("planner agent chat: %w", err)
@@ -171,7 +170,7 @@ func (ap *ArticleProcessor) generatePlan(sourceContent, discussionContent string
 }
 
 // generateArticle uses the writer agent to create the final article
-func (ap *ArticleProcessor) generateArticle(sourceContent string, plan *Plan, discussionContent, sourceURL string) (*Article, error) {
+func (ap *ArticleProcessor) generateArticle(sourceContent string, plan *Plan, sourceURL string) (*Article, error) {
 	systemPrompt, err := ap.loadSystemPrompt("writer")
 	if err != nil {
 		return nil, fmt.Errorf("loading writer system prompt: %w", err)
@@ -185,24 +184,27 @@ func (ap *ArticleProcessor) generateArticle(sourceContent string, plan *Plan, di
 Source content:
 %s`, planJSON, sourceContent)
 
-	if discussionContent != "" {
-		prompt += fmt.Sprintf("\n\nDiscussion content:\n%s", discussionContent)
-	}
-
 	response, err := ap.writerAgent.Chat(prompt, &agents.ChatOptions{
 		SystemPrompt: systemPrompt,
-		MaxTokens:    3000,
+		MaxTokens:    ap.settings.Agents.Writer.MaxTokens,
+		Temperature:  ap.settings.Agents.Writer.Temperature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("writer agent chat: %w", err)
 	}
 
 	article := &Article{
-		Title:     plan.Title,
-		Source:    extractDomain(sourceURL),
-		SourceURL: sourceURL,
-		Content:   response.Text,
-		CreatedAt: time.Now(),
+		Title:        plan.Title,
+		Source:       extractDomain(sourceURL),
+		SourceURL:    sourceURL,
+		Content:      response.Text,
+		CreatedAt:    time.Now(),
+		Deck:         plan.Deck,
+		Categories:   plan.Categories,
+		Tags:         plan.Tags,
+		Author:       "Signal Editorial Team",
+		AuthorTitle:  "AI-generated content, human-reviewed",
+		SourceDomain: extractDomain(sourceURL),
 	}
 
 	return article, nil
@@ -226,8 +228,9 @@ func (ap *ArticleProcessor) loadConfig(configPath string) (*Config, error) {
 
 // generateFilename creates a filename from the item
 func (ap *ArticleProcessor) generateFilename(item ArticleItem) string {
-	slug := generateSlug(item.SourceURL)
-	return fmt.Sprintf("articles/%d-%s.md", item.ID, slug)
+	slug := generateSlug(item.URL)
+	currentDate := time.Now().Format("2006-01-02")
+	return fmt.Sprintf("%s/%s-%s.md", ap.settings.OutputDirectory, currentDate, slug)
 }
 
 // fileExists checks if a file already exists
@@ -236,23 +239,35 @@ func (ap *ArticleProcessor) fileExists(filename string) bool {
 	return err == nil
 }
 
-// saveArticle saves the article to a markdown file
+// saveArticle saves the article to a markdown file using the template
 func (ap *ArticleProcessor) saveArticle(filename string, article *Article) error {
-	// Ensure articles directory exists
+	// Ensure output directory exists
 	dir := filepath.Dir(filename)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
 	}
 
-	// Format as markdown
-	content := fmt.Sprintf(`# %s
-*Source: [%s](%s)*
+	// Load template
+	templateData, err := os.ReadFile(ap.settings.TemplatePath)
+	if err != nil {
+		return fmt.Errorf("reading template %s: %w", ap.settings.TemplatePath, err)
+	}
 
-%s
-`, article.Title, article.Source, article.SourceURL, article.Content)
+	// Parse template
+	tmpl, err := template.New("article").Parse(string(templateData))
+	if err != nil {
+		return fmt.Errorf("parsing template: %w", err)
+	}
 
-	return os.WriteFile(filename, []byte(content), 0644)
+	// Execute template
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, article)
+	if err != nil {
+		return fmt.Errorf("executing template: %w", err)
+	}
+
+	return os.WriteFile(filename, buf.Bytes(), 0644)
 }
 
 // generateSlug creates a URL slug from a URL
@@ -284,7 +299,7 @@ func generateSlug(url string) string {
 
 // loadSystemPrompt loads a system prompt from a file
 func (ap *ArticleProcessor) loadSystemPrompt(agentName string) (string, error) {
-	filename := fmt.Sprintf("agents/%s/system.md", agentName)
+	filename := fmt.Sprintf("agents/%s/system-prompt.md", agentName)
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return "", fmt.Errorf("reading system prompt %s: %w", filename, err)
@@ -310,4 +325,31 @@ func extractDomain(url string) string {
 		return matches[1]
 	}
 	return url
+}
+
+// loadSettings loads settings from YAML file
+func loadSettings(settingsPath string) (*Settings, error) {
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		// Return default settings if file doesn't exist
+		return &Settings{
+			OutputDirectory: "articles",
+			TemplatePath:    "config/news-article-template.md",
+			Agents: struct {
+				Planner AgentSettings `yaml:"planner"`
+				Writer  AgentSettings `yaml:"writer"`
+			}{
+				Planner: AgentSettings{MaxTokens: 2000, Temperature: 0.0},
+				Writer:  AgentSettings{MaxTokens: 3000, Temperature: 0.3},
+			},
+		}, nil
+	}
+
+	var settings Settings
+	err = yaml.Unmarshal(data, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
 }
