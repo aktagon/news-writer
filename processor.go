@@ -140,7 +140,7 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 	for i, item := range config.Items {
 		log.Printf("[%d/%d] Processing: %s", i+1, len(config.Items), item.URL)
-		result := ap.processItem(item)
+		result := ap.ProcessItem(item)
 		results = append(results, result)
 
 		if result.Success {
@@ -153,10 +153,10 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 	return results, nil
 }
 
-// processItem processes a single article item
-func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
+// ProcessItem processes a single article item
+func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
 	// Skip if article for this URL already exists
-	if existingFile := ap.findExistingArticle(item.URL); existingFile != "" {
+	if existingFile := ap.FindExistingArticle(item.URL); existingFile != "" {
 		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
 		return ProcessingResult{
 			URL:      item.URL,
@@ -406,8 +406,8 @@ func (ap *ArticleProcessor) fileExists(filename string) bool {
 	return err == nil
 }
 
-// findExistingArticle checks if an article for the given URL already exists by checking frontmatter
-func (ap *ArticleProcessor) findExistingArticle(url string) string {
+// FindExistingArticle checks if an article for the given URL already exists by checking frontmatter
+func (ap *ArticleProcessor) FindExistingArticle(url string) string {
 	files, err := filepath.Glob(filepath.Join(ap.settings.OutputDirectory, "*.md"))
 	if err != nil {
 		return ""
@@ -639,6 +639,65 @@ func ensureConfigExists() error {
 		if err != nil {
 			return fmt.Errorf("writing settings.yaml: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// addURLToConfig adds a URL to the YAML configuration file
+func addURLToConfig(configPath, url string) error {
+	// Validate URL format
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return fmt.Errorf("invalid URL format: %s (must start with http:// or https://)", url)
+	}
+
+	// Check if config file exists
+	var config *Config
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Create new config with empty items
+		config = &Config{
+			Items: []ArticleItem{},
+		}
+	} else {
+		// Load existing config
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return fmt.Errorf("reading config file: %w", err)
+		}
+
+		err = yaml.Unmarshal(data, config)
+		if err != nil {
+			return fmt.Errorf("parsing config file: %w", err)
+		}
+	}
+
+	// Check if URL already exists in config
+	for _, item := range config.Items {
+		if item.URL == url {
+			return fmt.Errorf("URL already exists in configuration: %s", url)
+		}
+	}
+
+	// Add new URL to config
+	config.Items = append(config.Items, ArticleItem{URL: url})
+
+	// Marshal config back to YAML
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	// Ensure config directory exists
+	dir := filepath.Dir(configPath)
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	// Write config file
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("writing config file: %w", err)
 	}
 
 	return nil
