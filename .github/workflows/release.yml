@@ -124,18 +124,3 @@ jobs:
           asset_name: news-writer-windows-amd64.exe
           asset_content_type: application/octet-stream
 
-      - name: Update Homebrew Formula
-        run: |
-          # Calculate SHA256 of the source tarball
-          TARBALL_URL="https://github.com/aktagon/news-writer/archive/refs/tags/${{ steps.increment_version.outputs.new_version }}.tar.gz"
-          SHA256=$(curl -sL "$TARBALL_URL" | sha256sum | cut -d' ' -f1)
-
-          # Update the formula
-          sed -i "s|url \".*\"|url \"$TARBALL_URL\"|" Formula/news-writer.rb
-          sed -i "s|version \".*\"|version \"${{ steps.increment_version.outputs.new_version }}\"|" Formula/news-writer.rb
-          sed -i "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/news-writer.rb
-
-          # Commit and push the changes
-          git add Formula/news-writer.rb
-          git commit -m "Update Homebrew formula to ${{ steps.increment_version.outputs.new_version }}"
-          git push origin master
