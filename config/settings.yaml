@@ -22,7 +22,7 @@ categories:
     description: "AI, machine learning, and intelligent systems"
     subcategories:
       [
-        "artificial-intelligence",
+        "large-language-models",
         "machine-learning",
         "computer-vision",
         "nlp",
@@ -50,4 +50,3 @@ categories:
   - name: "Crypto & Blockchain"
     description: "Cryptocurrency, blockchain technology, and decentralized systems"
     subcategories: ["blockchain", "cryptocurrency", "defi", "web3"]
-
