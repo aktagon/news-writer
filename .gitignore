@@ -1,4 +1,5 @@
 bin/
+articles/
 .envrc
 *.log
 kanban/
