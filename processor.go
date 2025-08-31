@@ -155,8 +155,8 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 // ProcessItem processes a single article item
 func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
-	// Skip if article for this URL already exists
-	if existingFile := ap.FindExistingArticle(item.URL); existingFile != "" {
+	// Skip if article for this URL already exists and overwrite is false
+	if existingFile := ap.FindExistingArticle(item.URL); existingFile != "" && !ap.overwrite {
 		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
 		return ProcessingResult{
 			URL:      item.URL,
