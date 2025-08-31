@@ -281,7 +281,7 @@ MANDATORY INSTRUCTIONS:
 - Use the specified tone: %s
 - Include all key points from the plan
 - Target word count: %d words`,
-		systemPrompt, string(planJSON), plan.Category, plan.Target.Tone, plan.Target.WordCount)
+		systemPrompt, string(planJSON), strings.Join(plan.Categories, ", "), plan.Target.Tone, plan.Target.WordCount)
 
 	// User prompt contains only the source content
 	userPrompt := fmt.Sprintf("Source content:\n%s", sourceContent)
@@ -302,8 +302,7 @@ MANDATORY INSTRUCTIONS:
 		Content:        response.Text,
 		CreatedAt:      time.Now(),
 		Deck:           plan.Deck,
-		Category:       plan.Category,
-		Subcategory:    plan.Subcategory,
+		Categories:     plan.Categories,
 		Tags:           plan.Tags,
 		Author:         "Signal Editorial Team",
 		AuthorTitle:    "AI generated and human reviewed content.",

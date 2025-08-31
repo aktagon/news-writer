@@ -5,8 +5,7 @@
     "deck": {"type": "string", "description": "Brief one-sentence summary of the article"},
     "key_points": {"type": "array", "items": {"type": "string"}},
     "structure": {"type": "array", "items": {"type": "string"}},
-    "category": {"type": "string", "description": "Top-level category group (e.g., Development, Technology, Business & Strategy)"},
-    "subcategory": {"type": "string", "description": "Specific subcategory (e.g., programming, web-development, ai)"},
+    "categories": {"type": "array", "items": {"type": "string"}, "description": "Leaf categories using forward slash format (e.g., Development/Programming, Technology/Innovation)"},
     "tags": {"type": "array", "items": {"type": "string"}, "description": "Relevant tags (e.g., javascript, react, api, performance)"},
     "target": {
       "type": "object",
@@ -18,5 +17,5 @@
       "required": ["word_count", "tone", "audience"]
     }
   },
-  "required": ["title", "deck", "key_points", "structure", "category", "subcategory", "tags", "target"]
+  "required": ["title", "deck", "key_points", "structure", "categories", "tags", "target"]
 }

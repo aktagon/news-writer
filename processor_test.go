@@ -11,8 +11,7 @@ func TestPlanJSONUnmarshaling(t *testing.T) {
 		"deck": "Essential techniques for optimizing React applications",
 		"key_points": ["Memoization reduces re-renders", "Code splitting improves load times"],
 		"structure": ["Introduction", "Memoization techniques", "Bundle optimization"],
-		"category": "Development",
-		"subcategory": "web-development",
+		"categories": ["Development/Web Development"],
 		"tags": ["react", "performance"],
 		"target": {
 			"word_count": 1200,
@@ -39,13 +38,12 @@ func TestPlanJSONUnmarshaling(t *testing.T) {
 
 func TestPlanRequiredFields(t *testing.T) {
 	plan := Plan{
-		Title:       "Test Article",
-		Deck:        "Test deck",
-		KeyPoints:   []string{"Point 1"},
-		Structure:   []string{"Section 1"},
-		Category:    "Technology",
-		Subcategory: "programming",
-		Tags:        []string{"test"},
+		Title:      "Test Article",
+		Deck:       "Test deck",
+		KeyPoints:  []string{"Point 1"},
+		Structure:  []string{"Section 1"},
+		Categories: []string{"Technology/Programming"},
+		Tags:       []string{"test"},
 		Target: Target{
 			WordCount: 800,
 			Tone:      "informative",
@@ -63,7 +61,7 @@ func TestPlanRequiredFields(t *testing.T) {
 		t.Fatalf("Failed to unmarshal to map: %v", err)
 	}
 
-	requiredFields := []string{"title", "deck", "key_points", "structure", "category", "subcategory", "tags", "target"}
+	requiredFields := []string{"title", "deck", "key_points", "structure", "categories", "tags", "target"}
 	for _, field := range requiredFields {
 		if _, exists := jsonMap[field]; !exists {
 			t.Errorf("Required field '%s' missing from JSON output", field)
