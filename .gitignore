@@ -1,4 +1,5 @@
 bin/
+.news-writer/
 articles/
 .envrc
 *.log

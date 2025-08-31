@@ -57,8 +57,7 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o news-writer-windows-amd64.exe .
 
       - name: Run tests
-        run: |
-          go test ./...
+        run: make test
 
       - name: Create and push tag
         run: |

@@ -3,6 +3,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 )
@@ -46,6 +47,14 @@ func main() {
 	// Set overwrite flag
 	processor.SetOverwrite(*overwrite)
 
+	// Check if this is the first run (config file doesn't exist and is default)
+	if configSource == GetConfigPath("news-articles.yaml") {
+		if _, err := os.Stat(configSource); os.IsNotExist(err) {
+			showFirstRunMessage()
+			return
+		}
+	}
+
 	// Process articles
 	log.Printf("Starting article distillation from %s", configSource)
 	results, err := processor.ProcessArticles(configSource)
@@ -69,4 +78,25 @@ func main() {
 	if failed > 0 {
 		os.Exit(1)
 	}
+}
+
+// showFirstRunMessage displays instructions for first-time users
+func showFirstRunMessage() {
+	fmt.Printf("Welcome to news-writer! Configuration files have been created in %s\n", defaultConfigDir)
+	fmt.Printf("\n")
+	fmt.Printf("Configuration files:\n")
+	fmt.Printf("  %s  - Article URLs to process\n", GetConfigPath("news-articles.yaml"))
+	fmt.Printf("  %s         - Agent settings and output directory\n", GetConfigPath("settings.yaml"))
+	fmt.Printf("  %s  - Article output template\n", GetConfigPath("news-article-template.md"))
+	fmt.Printf("  %s  - AI agent prompts (customizable)\n", GetConfigPath("*-system-prompt.md"))
+	fmt.Printf("\n")
+	fmt.Printf("To get started, create the articles configuration file:\n")
+	fmt.Printf("  %s\n", GetConfigPath("news-articles.yaml"))
+	fmt.Printf("\n")
+	fmt.Printf("Example configuration:\n")
+	fmt.Printf(`  items:
+    - url: "https://example.com/article1"
+    - url: "https://example.com/article2"`)
+	fmt.Printf("\n\n")
+	fmt.Printf("Then run the command again to process articles.\n")
 }

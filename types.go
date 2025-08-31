@@ -61,10 +61,18 @@ type AgentSettings struct {
 	Temperature float64 `yaml:"temperature"`
 }
 
+// Category represents a content category with subcategories
+type Category struct {
+	Name          string   `yaml:"name"`
+	Description   string   `yaml:"description"`
+	Subcategories []string `yaml:"subcategories"`
+}
+
 // Settings represents the application settings
 type Settings struct {
-	OutputDirectory string `yaml:"output_directory"`
-	TemplatePath    string `yaml:"template_path"`
+	OutputDirectory string     `yaml:"output_directory"`
+	TemplatePath    string     `yaml:"template_path"`
+	Categories      []Category `yaml:"categories"`
 	Agents          struct {
 		Planner AgentSettings `yaml:"planner"`
 		Writer  AgentSettings `yaml:"writer"`

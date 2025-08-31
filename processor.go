@@ -205,7 +205,7 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 
 // generatePlan uses the planner agent to create a plan
 func (ap *ArticleProcessor) generatePlan(sourceContent string) (*Plan, error) {
-	systemPrompt, err := ap.loadSystemPrompt("planner")
+	systemPrompt, err := ap.loadPlannerSystemPrompt()
 	if err != nil {
 		return nil, fmt.Errorf("loading planner system prompt: %w", err)
 	}
@@ -238,21 +238,34 @@ func (ap *ArticleProcessor) generatePlan(sourceContent string) (*Plan, error) {
 
 // generateArticle uses the writer agent to create the final article
 func (ap *ArticleProcessor) generateArticle(sourceContent string, plan *Plan, sourceURL string) (*Article, error) {
-	systemPrompt, err := ap.loadSystemPrompt("writer")
+	systemPrompt, err := ap.loadWriterSystemPrompt()
 	if err != nil {
 		return nil, fmt.Errorf("loading writer system prompt: %w", err)
 	}
 
+	// Marshal plan as JSON for system prompt
 	planJSON, _ := json.Marshal(plan)
 
-	prompt := fmt.Sprintf(`Plan:
+	// Always append plan context and instructions to system prompt (user cannot override)
+	enhancedSystemPrompt := fmt.Sprintf(`%s
+
+<plan>
 %s
+</plan>
 
-Source content:
-%s`, planJSON, sourceContent)
+MANDATORY INSTRUCTIONS:
+- Follow the structure outlined in the plan exactly
+- Match your writing style and emphasis to the plan's category: %s
+- Use the specified tone: %s
+- Include all key points from the plan
+- Target word count: %d words`,
+		systemPrompt, string(planJSON), plan.Category, plan.Target.Tone, plan.Target.WordCount)
 
-	response, err := ap.writerAgent.Chat(prompt, &agents.ChatOptions{
-		SystemPrompt: systemPrompt,
+	// User prompt contains only the source content
+	userPrompt := fmt.Sprintf("Source content:\n%s", sourceContent)
+
+	response, err := ap.writerAgent.Chat(userPrompt, &agents.ChatOptions{
+		SystemPrompt: enhancedSystemPrompt,
 		MaxTokens:    ap.settings.Agents.Writer.MaxTokens,
 		Temperature:  ap.settings.Agents.Writer.Temperature,
 	})
@@ -477,20 +490,28 @@ func generateSlugFromTitle(title string) string {
 	return slug
 }
 
-// loadSystemPrompt loads a system prompt from config directory or embedded data
-func (ap *ArticleProcessor) loadSystemPrompt(agentName string) (string, error) {
-	filename := filepath.Join(defaultConfigDir, fmt.Sprintf("%s-system-prompt.md", agentName))
+// loadPlannerSystemPrompt loads planner prompt and appends categories
+func (ap *ArticleProcessor) loadPlannerSystemPrompt() (string, error) {
+	filename := filepath.Join(defaultConfigDir, "planner-system-prompt.md")
+	data, err := os.ReadFile(filename)
+	var basePrompt string
+
+	if err != nil {
+		basePrompt = strings.TrimSpace(plannerSystemPrompt)
+	} else {
+		basePrompt = strings.TrimSpace(string(data))
+	}
+
+	categoriesJSON, _ := json.MarshalIndent(ap.settings.Categories, "", "  ")
+	return basePrompt + "\n\nAvailable categories:\n" + string(categoriesJSON), nil
+}
+
+// loadWriterSystemPrompt loads writer prompt
+func (ap *ArticleProcessor) loadWriterSystemPrompt() (string, error) {
+	filename := filepath.Join(defaultConfigDir, "writer-system-prompt.md")
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		// Fallback to embedded data if config file doesn't exist
-		switch agentName {
-		case "planner":
-			return strings.TrimSpace(plannerSystemPrompt), nil
-		case "writer":
-			return strings.TrimSpace(writerSystemPrompt), nil
-		default:
-			return "", fmt.Errorf("unknown agent: %s", agentName)
-		}
+		return strings.TrimSpace(writerSystemPrompt), nil
 	}
 	return strings.TrimSpace(string(data)), nil
 }
@@ -603,14 +624,8 @@ func ensureConfigExists() error {
 		}
 	}
 
-	// Write news-articles.yaml
-	newsArticlesFile := filepath.Join(defaultConfigDir, "news-articles.yaml")
-	if _, err := os.Stat(newsArticlesFile); os.IsNotExist(err) {
-		err = os.WriteFile(newsArticlesFile, []byte(defaultNewsArticles), 0644)
-		if err != nil {
-			return fmt.Errorf("writing news-articles.yaml: %w", err)
-		}
-	}
+	// Don't write news-articles.yaml on first run - let user create it
+	// The default template is embedded and can be shown to user via showFirstRunMessage
 
 	return nil
 }

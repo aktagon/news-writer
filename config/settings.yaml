@@ -5,5 +5,49 @@ agents:
     max_tokens: 2000
     temperature: 0.0
   writer:
-    max_tokens: 3000
+    max_tokens: 4000
     temperature: 0.3
+categories:
+  - name: "Development"
+    description: "Software development, programming languages, and engineering practices"
+    subcategories:
+      [
+        "programming",
+        "software-engineering",
+        "web-development",
+        "mobile-development",
+        "devops",
+      ]
+  - name: "Artificial Intelligence"
+    description: "AI, machine learning, and intelligent systems"
+    subcategories:
+      [
+        "artificial-intelligence",
+        "machine-learning",
+        "computer-vision",
+        "nlp",
+        "deep-learning",
+      ]
+  - name: "Technology"
+    description: "General technology trends, innovations, and digital transformation"
+    subcategories:
+      ["technology", "innovation", "digital-transformation", "emerging-tech"]
+  - name: "Data & Analytics"
+    description: "Data science, analytics, databases, and big data processing"
+    subcategories:
+      ["data-science", "analytics", "databases", "big-data", "data-engineering"]
+  - name: "Business & Strategy"
+    description: "Entrepreneurship, business strategy, and market insights"
+    subcategories:
+      ["business", "startups", "entrepreneurship", "strategy", "marketing"]
+  - name: "Security"
+    description: "Cybersecurity, privacy, and security best practices"
+    subcategories: ["cybersecurity", "privacy", "security", "authentication"]
+  - name: "Infrastructure"
+    description: "Cloud computing, DevOps, and system architecture"
+    subcategories:
+      ["cloud-computing", "infrastructure", "devops", "system-architecture"]
+  - name: "Crypto & Blockchain"
+    description: "Cryptocurrency, blockchain technology, and decentralized systems"
+    subcategories: ["blockchain", "cryptocurrency", "defi", "web3"]
+
