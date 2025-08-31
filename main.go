@@ -10,7 +10,7 @@ import (
 func main() {
 	// Command line flags
 	var (
-		configPath      = flag.String("config", "config/news-articles.yaml", "Path to the articles configuration file")
+		configPath      = flag.String("config", GetConfigPath("news-articles.yaml"), "Path to the articles configuration file")
 		newsArticlesURL = flag.String("news-articles-url", "", "URL to CSV file containing article URLs")
 		apiKey          = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
 		overwrite       = flag.Bool("overwrite", false, "Overwrite existing article files")
@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	// Validate that only one config source is provided
-	if *configPath != "config/news-articles.yaml" && *newsArticlesURL != "" {
+	if *configPath != GetConfigPath("news-articles.yaml") && *newsArticlesURL != "" {
 		log.Fatal("Cannot specify both -config and -news-articles-url flags")
 	}
 

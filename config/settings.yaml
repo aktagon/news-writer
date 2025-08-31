@@ -1,5 +1,5 @@
 output_directory: articles
-template_path: config/news-article-template.md
+template_path: .news-writer/news-article-template.md
 agents:
   planner:
     max_tokens: 2000

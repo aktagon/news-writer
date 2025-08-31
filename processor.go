@@ -20,13 +20,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed agents/planner/system-prompt.md
+const defaultConfigDir = ".news-writer/"
+
+// GetConfigPath returns the full path to a config file
+func GetConfigPath(filename string) string {
+	return filepath.Join(defaultConfigDir, filename)
+}
+
+//go:embed config/planner-system-prompt.md
 var plannerSystemPrompt string
 
-//go:embed agents/writer/system-prompt.md
+//go:embed config/writer-system-prompt.md
 var writerSystemPrompt string
 
-//go:embed agents/planner/output-schema.json
+//go:embed config/planner-output-schema.json
 var plannerSchema string
 
 //go:embed config/settings.yaml
@@ -34,6 +41,9 @@ var defaultSettings string
 
 //go:embed config/news-article-template.md
 var defaultTemplate string
+
+//go:embed config/news-articles.yaml
+var defaultNewsArticles string
 
 // ArticleProcessor handles the main workflow
 type ArticleProcessor struct {
@@ -53,7 +63,7 @@ func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
 	}
 
 	// Load settings
-	settings, err := loadSettings("config/settings.yaml")
+	settings, err := loadSettings(filepath.Join(defaultConfigDir, "settings.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("loading settings: %w", err)
 	}
@@ -104,7 +114,10 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 	results := make([]ProcessingResult, 0, len(config.Items))
 
-	for _, item := range config.Items {
+	log.Printf("Processing %d articles...", len(config.Items))
+
+	for i, item := range config.Items {
+		log.Printf("[%d/%d] Processing: %s", i+1, len(config.Items), item.URL)
 		result := ap.processItem(item)
 		results = append(results, result)
 
@@ -131,6 +144,7 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	}
 
 	// Fetch source content
+	log.Printf("  → Fetching content...")
 	sourceContent, err := ap.fetcher.FetchContent(item.URL)
 	if err != nil {
 		return ProcessingResult{
@@ -140,6 +154,7 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	}
 
 	// Generate plan
+	log.Printf("  → Generating plan...")
 	plan, err := ap.generatePlan(sourceContent)
 	if err != nil {
 		return ProcessingResult{
@@ -162,6 +177,7 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	}
 
 	// Generate article
+	log.Printf("  → Writing article: %s", plan.Title)
 	article, err := ap.generateArticle(sourceContent, plan, item.URL)
 	if err != nil {
 		return ProcessingResult{
@@ -171,6 +187,7 @@ func (ap *ArticleProcessor) processItem(item ArticleItem) ProcessingResult {
 	}
 
 	// Save article
+	log.Printf("  → Saving to: %s", filename)
 	err = ap.saveArticle(filename, article)
 	if err != nil {
 		return ProcessingResult{
@@ -250,10 +267,11 @@ Source content:
 		Content:      response.Text,
 		CreatedAt:    time.Now(),
 		Deck:         plan.Deck,
-		Categories:   plan.Categories,
+		Category:     plan.Category,
+		Subcategory:  plan.Subcategory,
 		Tags:         plan.Tags,
 		Author:       "Signal Editorial Team",
-		AuthorTitle:  "AI-generated content, human-reviewed",
+		AuthorTitle:  "AI generated and human reviewed content.",
 		SourceDomain: extractDomain(sourceURL),
 	}
 
@@ -459,9 +477,9 @@ func generateSlugFromTitle(title string) string {
 	return slug
 }
 
-// loadSystemPrompt loads a system prompt from config/ or embedded data
+// loadSystemPrompt loads a system prompt from config directory or embedded data
 func (ap *ArticleProcessor) loadSystemPrompt(agentName string) (string, error) {
-	filename := fmt.Sprintf("config/%s-system-prompt.md", agentName)
+	filename := filepath.Join(defaultConfigDir, fmt.Sprintf("%s-system-prompt.md", agentName))
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		// Fallback to embedded data if config file doesn't exist
@@ -477,9 +495,9 @@ func (ap *ArticleProcessor) loadSystemPrompt(agentName string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// loadSchema loads a JSON schema from config/ or embedded data
+// loadSchema loads a JSON schema from config directory or embedded data
 func (ap *ArticleProcessor) loadSchema(agentName string) (string, error) {
-	filename := fmt.Sprintf("config/%s-output-schema.json", agentName)
+	filename := filepath.Join(defaultConfigDir, fmt.Sprintf("%s-output-schema.json", agentName))
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		// Fallback to embedded data if config file doesn't exist
@@ -506,14 +524,13 @@ func extractDomain(url string) string {
 }
 
 // loadSettings loads settings from YAML file
-// TODO: Create a sample configuration file in config/
 func loadSettings(settingsPath string) (*Settings, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		// Return default settings if file doesn't exist
 		return &Settings{
 			OutputDirectory: "articles",
-			TemplatePath:    "config/news-article-template.md",
+			TemplatePath:    filepath.Join(defaultConfigDir, "news-article-template.md"),
 			Agents: struct {
 				Planner AgentSettings `yaml:"planner"`
 				Writer  AgentSettings `yaml:"writer"`
@@ -533,16 +550,16 @@ func loadSettings(settingsPath string) (*Settings, error) {
 	return &settings, nil
 }
 
-// ensureConfigExists writes embedded config files to config/ directory if they don't exist
+// ensureConfigExists writes embedded config files to config directory if they don't exist
 func ensureConfigExists() error {
 	// Ensure config directory exists
-	err := os.MkdirAll("config", 0755)
+	err := os.MkdirAll(defaultConfigDir, 0755)
 	if err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
 	// Write settings.yaml
-	settingsFile := "config/settings.yaml"
+	settingsFile := filepath.Join(defaultConfigDir, "settings.yaml")
 	if _, err := os.Stat(settingsFile); os.IsNotExist(err) {
 		err = os.WriteFile(settingsFile, []byte(defaultSettings), 0644)
 		if err != nil {
@@ -551,7 +568,7 @@ func ensureConfigExists() error {
 	}
 
 	// Write planner system prompt
-	plannerFile := "config/planner-system-prompt.md"
+	plannerFile := filepath.Join(defaultConfigDir, "planner-system-prompt.md")
 	if _, err := os.Stat(plannerFile); os.IsNotExist(err) {
 		err = os.WriteFile(plannerFile, []byte(plannerSystemPrompt), 0644)
 		if err != nil {
@@ -560,7 +577,7 @@ func ensureConfigExists() error {
 	}
 
 	// Write writer system prompt
-	writerFile := "config/writer-system-prompt.md"
+	writerFile := filepath.Join(defaultConfigDir, "writer-system-prompt.md")
 	if _, err := os.Stat(writerFile); os.IsNotExist(err) {
 		err = os.WriteFile(writerFile, []byte(writerSystemPrompt), 0644)
 		if err != nil {
@@ -569,7 +586,7 @@ func ensureConfigExists() error {
 	}
 
 	// Write planner schema
-	schemaFile := "config/planner-output-schema.json"
+	schemaFile := filepath.Join(defaultConfigDir, "planner-output-schema.json")
 	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
 		err = os.WriteFile(schemaFile, []byte(plannerSchema), 0644)
 		if err != nil {
@@ -578,11 +595,20 @@ func ensureConfigExists() error {
 	}
 
 	// Write template file
-	templateFile := "config/news-article-template.md"
+	templateFile := filepath.Join(defaultConfigDir, "news-article-template.md")
 	if _, err := os.Stat(templateFile); os.IsNotExist(err) {
 		err = os.WriteFile(templateFile, []byte(defaultTemplate), 0644)
 		if err != nil {
 			return fmt.Errorf("writing template file: %w", err)
+		}
+	}
+
+	// Write news-articles.yaml
+	newsArticlesFile := filepath.Join(defaultConfigDir, "news-articles.yaml")
+	if _, err := os.Stat(newsArticlesFile); os.IsNotExist(err) {
+		err = os.WriteFile(newsArticlesFile, []byte(defaultNewsArticles), 0644)
+		if err != nil {
+			return fmt.Errorf("writing news-articles.yaml: %w", err)
 		}
 	}
 

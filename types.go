@@ -15,13 +15,14 @@ type Config struct {
 
 // Plan represents the planner agent output
 type Plan struct {
-	Title      string   `json:"title"`
-	Deck       string   `json:"deck"`
-	KeyPoints  []string `json:"key_points"`
-	Structure  []string `json:"structure"`
-	Categories []string `json:"categories"`
-	Tags       []string `json:"tags"`
-	Target     Target   `json:"target"`
+	Title       string   `json:"title"`
+	Deck        string   `json:"deck"`
+	KeyPoints   []string `json:"key_points"`
+	Structure   []string `json:"structure"`
+	Category    string   `json:"category"`
+	Subcategory string   `json:"subcategory"`
+	Tags        []string `json:"tags"`
+	Target      Target   `json:"target"`
 }
 
 // Target represents the target specifications for the article
@@ -38,7 +39,8 @@ type Article struct {
 	Content      string    `json:"content"`
 	CreatedAt    time.Time `json:"created_at"`
 	Deck         string    `json:"deck"`
-	Categories   []string  `json:"categories"`
+	Category     string    `json:"category"`
+	Subcategory  string    `json:"subcategory"`
 	Tags         []string  `json:"tags"`
 	Author       string    `json:"author"`
 	AuthorTitle  string    `json:"author_title"`

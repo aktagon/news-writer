@@ -1,27 +1,41 @@
-# Article Distillation System
+# News Writer
 
-A Go application that automatically distills web articles into concise, insightful summaries using AI agents.
+AI-powered article distillation system with structured category taxonomy and flexible tagging.
 
 ## Features
 
+- **Two-Level Category System**: Fixed category groups with specific categories for consistent organization
+- **Flexible Tagging**: Content-specific metadata for technologies, frameworks, concepts
 - **Automated Processing**: Processes multiple articles from YAML files or CSV URLs
 - **Dual Agent Architecture**: Separate planner and writer agents for optimal results
 - **Web Content Fetching**: Automatically retrieves and cleans web content
-- **Flexible Configuration**: Support for local YAML files or remote CSV sources
-- **Markdown Output**: Generates clean markdown files with proper citations
+- **Structured Output**: Articles with proper categorization and metadata
 - **Graceful Error Handling**: Continues processing even if individual articles fail
 - **Duplicate Detection**: Skips articles that have already been processed
+
+## Category System
+
+### Two-Level Structure
+
+**Level 1: Category Groups** (8 groups for navigation)
+- Development, Artificial Intelligence, Technology, Data & Analytics
+- Business & Strategy, Security, Infrastructure, Crypto & Blockchain
+
+**Level 2: Categories** (35 specific categories for content assignment)
+- Each article assigned exactly one category: `programming`, `web-development`, `machine-learning`, etc.
+
+**Flexible Tags**: Independent content metadata (React, Python, performance, security, etc.)
 
 ## Architecture
 
 ```
-Load Config (YAML/CSV) → Fetch Content → Plan Article → Write Article → Save Markdown
+Load Config (YAML/CSV) → Fetch Content → Plan with Category → Write Article → Save with Metadata
 ```
 
 The system uses two AI agents:
 
-- **Planner Agent**: Analyzes source content and creates a structured plan
-- **Writer Agent**: Follows the plan to create the final distilled article
+- **Planner Agent**: Analyzes content and selects appropriate category from fixed taxonomy
+- **Writer Agent**: Creates distilled article structured for the assigned category
 
 ## Installation
 
