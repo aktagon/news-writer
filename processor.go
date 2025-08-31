@@ -27,6 +27,15 @@ func GetConfigPath(filename string) string {
 	return filepath.Join(defaultConfigDir, filename)
 }
 
+// ConfigOverrides holds file path overrides for embedded configurations
+type ConfigOverrides struct {
+	PlannerPromptPath *string
+	WriterPromptPath  *string
+	PlannerSchemaPath *string
+	TemplatePath      *string
+	SettingsPath      *string
+}
+
 //go:embed config/planner-system-prompt.md
 var plannerSystemPrompt string
 
@@ -52,20 +61,32 @@ type ArticleProcessor struct {
 	fetcher      *ContentFetcher
 	settings     *Settings
 	overwrite    bool
+	overrides    *ConfigOverrides
 }
 
 // NewArticleProcessor creates a new processor with configured agents
-func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
+func NewArticleProcessor(apiKey string, overrides *ConfigOverrides) (*ArticleProcessor, error) {
 	// Ensure embedded config files are written to config/ on first run
 	err := ensureConfigExists()
 	if err != nil {
 		return nil, fmt.Errorf("ensuring config files exist: %w", err)
 	}
 
-	// Load settings
-	settings, err := loadSettings(filepath.Join(defaultConfigDir, "settings.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("loading settings: %w", err)
+	// Load settings with override
+	var settings *Settings
+	if overrides != nil && overrides.SettingsPath != nil {
+		// Explicit settings file must exist
+		settings, err = loadSettingsRequired(*overrides.SettingsPath)
+		if err != nil {
+			log.Fatalf("Critical error: settings file missing: %s - %v", *overrides.SettingsPath, err)
+		}
+	} else {
+		// Default settings path - use fallback if missing
+		settingsPath := filepath.Join(defaultConfigDir, "settings.yaml")
+		settings, err = loadSettings(settingsPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading settings: %w", err)
+		}
 	}
 
 	// Create planner agent
@@ -89,6 +110,7 @@ func NewArticleProcessor(apiKey string) (*ArticleProcessor, error) {
 		fetcher:      fetcher,
 		settings:     settings,
 		overwrite:    false,
+		overrides:    overrides,
 	}, nil
 }
 
@@ -417,10 +439,18 @@ func (ap *ArticleProcessor) saveArticle(filename string, article *Article) error
 		return err
 	}
 
-	// Load template
-	templateData, err := os.ReadFile(ap.settings.TemplatePath)
-	if err != nil {
-		return fmt.Errorf("reading template %s: %w", ap.settings.TemplatePath, err)
+	// Load template with override
+	var templateData []byte
+	if ap.overrides != nil && ap.overrides.TemplatePath != nil {
+		// Only read from file if explicitly overridden
+		data, err := os.ReadFile(*ap.overrides.TemplatePath)
+		if err != nil {
+			log.Fatalf("Critical error: template file missing: %s - %v", *ap.overrides.TemplatePath, err)
+		}
+		templateData = data
+	} else {
+		// Use embedded template by default
+		templateData = []byte(defaultTemplate)
 	}
 
 	// Parse template
@@ -493,14 +523,16 @@ func generateSlugFromTitle(title string) string {
 
 // loadPlannerSystemPrompt loads planner prompt and appends categories
 func (ap *ArticleProcessor) loadPlannerSystemPrompt() (string, error) {
-	filename := filepath.Join(defaultConfigDir, "planner-system-prompt.md")
-	data, err := os.ReadFile(filename)
 	var basePrompt string
 
-	if err != nil {
-		basePrompt = strings.TrimSpace(plannerSystemPrompt)
-	} else {
+	if ap.overrides != nil && ap.overrides.PlannerPromptPath != nil {
+		data, err := os.ReadFile(*ap.overrides.PlannerPromptPath)
+		if err != nil {
+			log.Fatalf("Critical error: planner prompt file missing: %s - %v", *ap.overrides.PlannerPromptPath, err)
+		}
 		basePrompt = strings.TrimSpace(string(data))
+	} else {
+		basePrompt = strings.TrimSpace(plannerSystemPrompt)
 	}
 
 	categoriesJSON, _ := json.MarshalIndent(ap.settings.Categories, "", "  ")
@@ -509,30 +541,35 @@ func (ap *ArticleProcessor) loadPlannerSystemPrompt() (string, error) {
 
 // loadWriterSystemPrompt loads writer prompt
 func (ap *ArticleProcessor) loadWriterSystemPrompt() (string, error) {
-	filename := filepath.Join(defaultConfigDir, "writer-system-prompt.md")
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return strings.TrimSpace(writerSystemPrompt), nil
+	if ap.overrides != nil && ap.overrides.WriterPromptPath != nil {
+		data, err := os.ReadFile(*ap.overrides.WriterPromptPath)
+		if err != nil {
+			log.Fatalf("Critical error: writer prompt file missing: %s - %v", *ap.overrides.WriterPromptPath, err)
+		}
+		return strings.TrimSpace(string(data)), nil
 	}
-	return strings.TrimSpace(string(data)), nil
+	return strings.TrimSpace(writerSystemPrompt), nil
 }
 
 // loadSchema loads a JSON schema from config directory or embedded data
 func (ap *ArticleProcessor) loadSchema(agentName string) (string, error) {
-	filename := filepath.Join(defaultConfigDir, fmt.Sprintf("%s-output-schema.json", agentName))
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		// Fallback to embedded data if config file doesn't exist
-		switch agentName {
-		case "planner":
-			return strings.TrimSpace(plannerSchema), nil
-		case "writer":
-			return "", fmt.Errorf("writer agent does not use schema")
-		default:
-			return "", fmt.Errorf("unknown agent: %s", agentName)
+	if ap.overrides != nil && ap.overrides.PlannerSchemaPath != nil && agentName == "planner" {
+		data, err := os.ReadFile(*ap.overrides.PlannerSchemaPath)
+		if err != nil {
+			log.Fatalf("Critical error: planner schema file missing: %s - %v", *ap.overrides.PlannerSchemaPath, err)
 		}
+		return strings.TrimSpace(string(data)), nil
 	}
-	return strings.TrimSpace(string(data)), nil
+
+	// Use embedded data
+	switch agentName {
+	case "planner":
+		return strings.TrimSpace(plannerSchema), nil
+	case "writer":
+		return "", fmt.Errorf("writer agent does not use schema")
+	default:
+		return "", fmt.Errorf("unknown agent: %s", agentName)
+	}
 }
 
 // extractDomain extracts the domain name from a URL
@@ -545,7 +582,7 @@ func extractDomain(url string) string {
 	return url
 }
 
-// loadSettings loads settings from YAML file
+// loadSettings loads settings from YAML file with fallback to defaults
 func loadSettings(settingsPath string) (*Settings, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -572,7 +609,23 @@ func loadSettings(settingsPath string) (*Settings, error) {
 	return &settings, nil
 }
 
-// ensureConfigExists writes embedded config files to config directory if they don't exist
+// loadSettingsRequired loads settings from YAML file, failing if file doesn't exist
+func loadSettingsRequired(settingsPath string) (*Settings, error) {
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var settings Settings
+	err = yaml.Unmarshal(data, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+// ensureConfigExists creates config directory and writes settings.yaml if needed
 func ensureConfigExists() error {
 	// Ensure config directory exists
 	err := os.MkdirAll(defaultConfigDir, 0755)
@@ -580,7 +633,7 @@ func ensureConfigExists() error {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
-	// Write settings.yaml
+	// Write settings.yaml - this should be customized by users
 	settingsFile := filepath.Join(defaultConfigDir, "settings.yaml")
 	if _, err := os.Stat(settingsFile); os.IsNotExist(err) {
 		err = os.WriteFile(settingsFile, []byte(defaultSettings), 0644)
@@ -588,45 +641,6 @@ func ensureConfigExists() error {
 			return fmt.Errorf("writing settings.yaml: %w", err)
 		}
 	}
-
-	// Write planner system prompt
-	plannerFile := filepath.Join(defaultConfigDir, "planner-system-prompt.md")
-	if _, err := os.Stat(plannerFile); os.IsNotExist(err) {
-		err = os.WriteFile(plannerFile, []byte(plannerSystemPrompt), 0644)
-		if err != nil {
-			return fmt.Errorf("writing planner system prompt: %w", err)
-		}
-	}
-
-	// Write writer system prompt
-	writerFile := filepath.Join(defaultConfigDir, "writer-system-prompt.md")
-	if _, err := os.Stat(writerFile); os.IsNotExist(err) {
-		err = os.WriteFile(writerFile, []byte(writerSystemPrompt), 0644)
-		if err != nil {
-			return fmt.Errorf("writing writer system prompt: %w", err)
-		}
-	}
-
-	// Write planner schema
-	schemaFile := filepath.Join(defaultConfigDir, "planner-output-schema.json")
-	if _, err := os.Stat(schemaFile); os.IsNotExist(err) {
-		err = os.WriteFile(schemaFile, []byte(plannerSchema), 0644)
-		if err != nil {
-			return fmt.Errorf("writing planner schema: %w", err)
-		}
-	}
-
-	// Write template file
-	templateFile := filepath.Join(defaultConfigDir, "news-article-template.md")
-	if _, err := os.Stat(templateFile); os.IsNotExist(err) {
-		err = os.WriteFile(templateFile, []byte(defaultTemplate), 0644)
-		if err != nil {
-			return fmt.Errorf("writing template file: %w", err)
-		}
-	}
-
-	// Don't write news-articles.yaml on first run - let user create it
-	// The default template is embedded and can be shown to user via showFirstRunMessage
 
 	return nil
 }

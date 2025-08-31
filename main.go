@@ -11,10 +11,15 @@ import (
 func main() {
 	// Command line flags
 	var (
-		configPath      = flag.String("config", GetConfigPath("news-articles.yaml"), "Path to the articles configuration file")
-		newsArticlesURL = flag.String("news-articles-url", "", "URL to CSV file containing article URLs")
-		apiKey          = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
-		overwrite       = flag.Bool("overwrite", false, "Overwrite existing article files")
+		configPath        = flag.String("config", GetConfigPath("news-articles.yaml"), "Path to the articles configuration file")
+		newsArticlesURL   = flag.String("news-articles-url", "", "URL to CSV file containing article URLs")
+		apiKey            = flag.String("api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
+		overwrite         = flag.Bool("overwrite", false, "Overwrite existing article files")
+		settingsFile      = flag.String("settings-file", "", "Path to custom settings.yaml file")
+		plannerPromptFile = flag.String("planner-prompt-file", "", "Path to custom planner system prompt file")
+		writerPromptFile  = flag.String("writer-prompt-file", "", "Path to custom writer system prompt file")
+		plannerSchemaFile = flag.String("planner-schema-file", "", "Path to custom planner output schema file")
+		templateFile      = flag.String("template-file", "", "Path to custom article template file")
 	)
 	flag.Parse()
 
@@ -38,8 +43,29 @@ func main() {
 		log.Fatal("API key required: use -api-key flag or ANTHROPIC_API_KEY environment variable")
 	}
 
+	// Create config overrides from command line flags
+	var overrides *ConfigOverrides
+	if *settingsFile != "" || *plannerPromptFile != "" || *writerPromptFile != "" || *plannerSchemaFile != "" || *templateFile != "" {
+		overrides = &ConfigOverrides{}
+		if *settingsFile != "" {
+			overrides.SettingsPath = settingsFile
+		}
+		if *plannerPromptFile != "" {
+			overrides.PlannerPromptPath = plannerPromptFile
+		}
+		if *writerPromptFile != "" {
+			overrides.WriterPromptPath = writerPromptFile
+		}
+		if *plannerSchemaFile != "" {
+			overrides.PlannerSchemaPath = plannerSchemaFile
+		}
+		if *templateFile != "" {
+			overrides.TemplatePath = templateFile
+		}
+	}
+
 	// Create processor
-	processor, err := NewArticleProcessor(*apiKey)
+	processor, err := NewArticleProcessor(*apiKey, overrides)
 	if err != nil {
 		log.Fatalf("Failed to create processor: %v", err)
 	}
