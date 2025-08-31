@@ -305,7 +305,7 @@ MANDATORY INSTRUCTIONS:
 		Categories:     plan.Categories,
 		Tags:           plan.Tags,
 		Author:         "Signal Editorial Team",
-		AuthorTitle:    "AI generated and human reviewed content.",
+		AuthorTitle:    "AI generated and human reviewed news meta-commentary.",
 		SourceDomain:   extractDomain(sourceURL),
 		TargetAudience: plan.Target.Audience,
 	}
