@@ -274,18 +274,19 @@ MANDATORY INSTRUCTIONS:
 	}
 
 	article := &Article{
-		Title:        plan.Title,
-		Source:       extractDomain(sourceURL),
-		SourceURL:    sourceURL,
-		Content:      response.Text,
-		CreatedAt:    time.Now(),
-		Deck:         plan.Deck,
-		Category:     plan.Category,
-		Subcategory:  plan.Subcategory,
-		Tags:         plan.Tags,
-		Author:       "Signal Editorial Team",
-		AuthorTitle:  "AI generated and human reviewed content.",
-		SourceDomain: extractDomain(sourceURL),
+		Title:          plan.Title,
+		Source:         extractDomain(sourceURL),
+		SourceURL:      sourceURL,
+		Content:        response.Text,
+		CreatedAt:      time.Now(),
+		Deck:           plan.Deck,
+		Category:       plan.Category,
+		Subcategory:    plan.Subcategory,
+		Tags:           plan.Tags,
+		Author:         "Signal Editorial Team",
+		AuthorTitle:    "AI generated and human reviewed content.",
+		SourceDomain:   extractDomain(sourceURL),
+		TargetAudience: plan.Target.Audience,
 	}
 
 	return article, nil

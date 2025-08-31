@@ -10,6 +10,7 @@ author_title: "{{.AuthorTitle}}"
 deck: "{{.Deck}}"
 source_url: "{{.SourceURL}}"
 source_domain: "{{.SourceDomain}}"
+target_audience: "{{.TargetAudience}}"
 ---
 
 {{.Content}}

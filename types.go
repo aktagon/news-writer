@@ -29,22 +29,24 @@ type Plan struct {
 type Target struct {
 	WordCount int    `json:"word_count"`
 	Tone      string `json:"tone"`
+	Audience  string `json:"audience"`
 }
 
 // Article represents the final article output
 type Article struct {
-	Title        string    `json:"title"`
-	Source       string    `json:"source"`
-	SourceURL    string    `json:"source_url"`
-	Content      string    `json:"content"`
-	CreatedAt    time.Time `json:"created_at"`
-	Deck         string    `json:"deck"`
-	Category     string    `json:"category"`
-	Subcategory  string    `json:"subcategory"`
-	Tags         []string  `json:"tags"`
-	Author       string    `json:"author"`
-	AuthorTitle  string    `json:"author_title"`
-	SourceDomain string    `json:"source_domain"`
+	Title          string    `json:"title"`
+	Source         string    `json:"source"`
+	SourceURL      string    `json:"source_url"`
+	Content        string    `json:"content"`
+	CreatedAt      time.Time `json:"created_at"`
+	Deck           string    `json:"deck"`
+	Category       string    `json:"category"`
+	Subcategory    string    `json:"subcategory"`
+	Tags           []string  `json:"tags"`
+	Author         string    `json:"author"`
+	AuthorTitle    string    `json:"author_title"`
+	SourceDomain   string    `json:"source_domain"`
+	TargetAudience string    `json:"target_audience"`
 }
 
 // ProcessingResult tracks the outcome of processing each item

@@ -11,42 +11,67 @@ categories:
   - name: "Development"
     description: "Software development, programming languages, and engineering practices"
     subcategories:
-      [
-        "programming",
-        "software-engineering",
-        "web-development",
-        "mobile-development",
-        "devops",
-      ]
+      - "Programming"
+      - "Software Engineering"
+      - "Web Development"
+      - "Mobile Development"
+      - "DevOps"
+
   - name: "Artificial Intelligence"
     description: "AI, machine learning, and intelligent systems"
     subcategories:
-      [
-        "large-language-models",
-        "machine-learning",
-        "computer-vision",
-        "nlp",
-        "deep-learning",
-      ]
+      - "Large Language Models"
+      - "Machine Learning"
+      - "Computer Vision"
+      - "Natural Language Processing"
+      - "Deep Learning"
+
   - name: "Technology"
     description: "General technology trends, innovations, and digital transformation"
     subcategories:
-      ["technology", "innovation", "digital-transformation", "emerging-tech"]
+      - "Technology"
+      - "Innovation"
+      - "Digital Transformation"
+      - "Emerging Technologies"
+
   - name: "Data & Analytics"
     description: "Data science, analytics, databases, and big data processing"
     subcategories:
-      ["data-science", "analytics", "databases", "big-data", "data-engineering"]
+      - "Data Science"
+      - "Analytics"
+      - "Databases"
+      - "Big Data"
+      - "Data Engineering"
+
   - name: "Business & Strategy"
     description: "Entrepreneurship, business strategy, and market insights"
     subcategories:
-      ["business", "startups", "entrepreneurship", "strategy", "marketing"]
+      - "Business"
+      - "Startups"
+      - "Entrepreneurship"
+      - "Strategy"
+      - "Marketing"
+
   - name: "Security"
     description: "Cybersecurity, privacy, and security best practices"
-    subcategories: ["cybersecurity", "privacy", "security", "authentication"]
+    subcategories:
+      - "Cybersecurity"
+      - "Privacy"
+      - "Security"
+      - "Authentication"
+
   - name: "Infrastructure"
     description: "Cloud computing, DevOps, and system architecture"
     subcategories:
-      ["cloud-computing", "infrastructure", "devops", "system-architecture"]
+      - "Cloud Computing"
+      - "Infrastructure"
+      - "DevOps"
+      - "System Architecture"
+
   - name: "Crypto & Blockchain"
     description: "Cryptocurrency, blockchain technology, and decentralized systems"
-    subcategories: ["blockchain", "cryptocurrency", "defi", "web3"]
+    subcategories:
+      - "Blockchain"
+      - "Cryptocurrency"
+      - "Decentralized Finance"
+      - "Web3"

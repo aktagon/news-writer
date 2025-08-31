@@ -12,9 +12,10 @@
       "type": "object",
       "properties": {
         "word_count": {"type": "integer"},
-        "tone": {"type": "string"}
+        "tone": {"type": "string"},
+        "audience": {"type": "string", "description": "Target audience description (e.g., 'Developers and tech leads evaluating LLM capabilities for production use')"}
       },
-      "required": ["word_count", "tone"]
+      "required": ["word_count", "tone", "audience"]
     }
   },
   "required": ["title", "deck", "key_points", "structure", "category", "subcategory", "tags", "target"]
