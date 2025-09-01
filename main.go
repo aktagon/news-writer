@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -225,9 +226,9 @@ func handleRewriteMode(url, configPath string) {
 		log.Printf("Found existing article for %s: %s", url, existingFile)
 		log.Printf("Rewriting article...")
 
-		// Process the single item
+		// Process the single item with existing filename to preserve it
 		item := ArticleItem{URL: url}
-		result := processor.ProcessItem(item)
+		result := processor.ProcessItemWithFilename(item, existingFile)
 
 		if result.Success {
 			log.Printf("✓ Rewritten: %s", result.Filename)
@@ -235,15 +236,20 @@ func handleRewriteMode(url, configPath string) {
 			log.Fatalf("✗ Failed to rewrite %s: %v", result.URL, result.Error)
 		}
 	} else {
-		log.Printf("URL not found in existing articles. Adding to configuration and processing...")
+		log.Printf("URL not found in existing articles. Checking configuration...")
 
-		// Add URL to YAML configuration
+		// Try to add URL to YAML configuration (will fail if already exists)
 		err := addURLToConfig(configPath, url)
 		if err != nil {
-			log.Fatalf("Failed to add URL to configuration: %v", err)
+			// If URL already exists in config, that's fine - just process it
+			if strings.Contains(err.Error(), "URL already exists in configuration") {
+				log.Printf("URL already exists in configuration. Processing...")
+			} else {
+				log.Fatalf("Failed to add URL to configuration: %v", err)
+			}
+		} else {
+			log.Printf("Added %s to %s", url, configPath)
 		}
-
-		log.Printf("Added %s to %s", url, configPath)
 
 		// Process the single item
 		item := ArticleItem{URL: url}

@@ -155,6 +155,11 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 // ProcessItem processes a single article item
 func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
+	return ap.ProcessItemWithFilename(item, "")
+}
+
+// ProcessItemWithFilename processes a single article item with an optional existing filename
+func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFilename string) ProcessingResult {
 	// Skip if article for this URL already exists and overwrite is false
 	if existingFile := ap.FindExistingArticle(item.URL); existingFile != "" && !ap.overwrite {
 		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
@@ -185,8 +190,23 @@ func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
 		}
 	}
 
-	// Generate filename using the plan title
-	filename := ap.generateFilenameFromTitle(plan.Title)
+	// Generate article first to get the date
+	log.Printf("  → Writing article: %s", plan.Title)
+	article, err := ap.generateArticle(sourceContent, plan, item.URL)
+	if err != nil {
+		return ProcessingResult{
+			URL:   item.URL,
+			Error: fmt.Errorf("generating article: %w", err),
+		}
+	}
+
+	// Generate filename using article date or existing filename
+	var filename string
+	if existingFilename != "" {
+		filename = existingFilename
+	} else {
+		filename = ap.generateFilenameFromArticle(article)
+	}
 
 	// Check if file exists and skip if overwrite is false
 	if !ap.overwrite && ap.fileExists(filename) {
@@ -195,16 +215,6 @@ func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
 			URL:      item.URL,
 			Success:  true,
 			Filename: filename,
-		}
-	}
-
-	// Generate article
-	log.Printf("  → Writing article: %s", plan.Title)
-	article, err := ap.generateArticle(sourceContent, plan, item.URL)
-	if err != nil {
-		return ProcessingResult{
-			URL:   item.URL,
-			Error: fmt.Errorf("generating article: %w", err),
 		}
 	}
 
@@ -280,7 +290,8 @@ MANDATORY INSTRUCTIONS:
 - Match your writing style and emphasis to the plan's category: %s
 - Use the specified tone: %s
 - Include all key points from the plan
-- Target word count: %d words`,
+- Target word count: %d words
+- IMPORTANT: Do NOT include the <plan> tags or plan content in your response. Only use the plan for guidance.`,
 		systemPrompt, string(planJSON), strings.Join(plan.Categories, ", "), plan.Target.Tone, plan.Target.WordCount)
 
 	// User prompt contains only the source content
@@ -295,11 +306,14 @@ MANDATORY INSTRUCTIONS:
 		return nil, fmt.Errorf("writer agent chat: %w", err)
 	}
 
+	// Clean up response: remove any plan tags that might have been included
+	cleanedContent := cleanPlanTags(response.Text)
+
 	article := &Article{
 		Title:          plan.Title,
 		Source:         extractDomain(sourceURL),
 		SourceURL:      sourceURL,
-		Content:        response.Text,
+		Content:        cleanedContent,
 		CreatedAt:      time.Now(),
 		Deck:           plan.Deck,
 		Categories:     plan.Categories,
@@ -398,6 +412,15 @@ func (ap *ArticleProcessor) generateFilenameFromTitle(title string) string {
 	slug := generateSlugFromTitle(title)
 	currentDate := time.Now().Format("2006-01-02")
 	return fmt.Sprintf("%s/%s-%s.md", ap.settings.OutputDirectory, currentDate, slug)
+}
+
+// generateFilenameFromArticle creates a filename using the date from article frontmatter
+func (ap *ArticleProcessor) generateFilenameFromArticle(article *Article) string {
+	slug := generateSlugFromTitle(article.Title)
+	// Use article date in YYYY/MM/slug.md format
+	year := article.CreatedAt.Format("2006")
+	month := article.CreatedAt.Format("01")
+	return fmt.Sprintf("%s/%s/%s/%s.md", ap.settings.OutputDirectory, year, month, slug)
 }
 
 // fileExists checks if a file already exists
@@ -665,6 +688,7 @@ func addURLToConfig(configPath, url string) error {
 			return fmt.Errorf("reading config file: %w", err)
 		}
 
+		config = &Config{}
 		err = yaml.Unmarshal(data, config)
 		if err != nil {
 			return fmt.Errorf("parsing config file: %w", err)
@@ -701,4 +725,11 @@ func addURLToConfig(configPath, url string) error {
 	}
 
 	return nil
+}
+
+// cleanPlanTags removes any <plan>...</plan> sections from the content using regex
+func cleanPlanTags(content string) string {
+	// Remove <plan>...</plan> tags and their content (including nested content and newlines)
+	planTagRegex := regexp.MustCompile(`(?s)<plan>.*?</plan>\s*`)
+	return planTagRegex.ReplaceAllString(content, "")
 }
