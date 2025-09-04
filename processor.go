@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/csv"
 	"encoding/json"
@@ -143,9 +144,12 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 		result := ap.ProcessItem(item)
 		results = append(results, result)
 
-		if result.Success {
+		switch result.Status {
+		case StatusSuccess:
 			log.Printf("✓ Generated: %s", result.Filename)
-		} else {
+		case StatusSkipped:
+			log.Printf("- Exists: %s", filepath.Base(result.Filename))
+		case StatusError:
 			log.Printf("✗ Failed %s: %v", result.URL, result.Error)
 		}
 	}
@@ -155,18 +159,106 @@ func (ap *ArticleProcessor) ProcessArticles(configSource string) ([]ProcessingRe
 
 // ProcessItem processes a single article item
 func (ap *ArticleProcessor) ProcessItem(item ArticleItem) ProcessingResult {
-	return ap.ProcessItemWithFilename(item, "")
+	// Find existing file by hash
+	existingFilename := ap.findExistingByHash(item.URL)
+
+	// If file exists and not overwriting, skip
+	if existingFilename != "" && !ap.overwrite {
+		return ProcessingResult{
+			URL:      item.URL,
+			Status:   StatusSkipped,
+			Filename: existingFilename,
+		}
+	}
+
+	// Process the article (fetch, plan, write)
+	article, err := ap.processArticleContent(item)
+	if err != nil {
+		return ProcessingResult{
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  err,
+		}
+	}
+
+	// Use existing filename if overwriting, otherwise generate new one
+	var filename string
+	if existingFilename != "" {
+		filename = existingFilename
+	} else {
+		filename = ap.generateFilenameFromArticle(article)
+	}
+
+	// Save the article
+	err = ap.saveArticleToFile(article, filename)
+	if err != nil {
+		return ProcessingResult{
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  err,
+		}
+	}
+
+	return ProcessingResult{
+		URL:      item.URL,
+		Status:   StatusSuccess,
+		Filename: filename,
+	}
+}
+
+// processArticleContent handles the core article processing pipeline
+func (ap *ArticleProcessor) processArticleContent(item ArticleItem) (*Article, error) {
+	// Fetch source content
+	log.Printf("  → Fetching content...")
+	sourceContent, err := ap.fetcher.FetchContent(item.URL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching source: %w", err)
+	}
+
+	// Generate plan
+	log.Printf("  → Generating plan...")
+	plan, err := ap.generatePlan(sourceContent)
+	if err != nil {
+		return nil, fmt.Errorf("generating plan: %w", err)
+	}
+
+	// Generate article
+	log.Printf("  → Writing article: %s", plan.Title)
+	article, err := ap.generateArticle(sourceContent, plan, item.URL)
+	if err != nil {
+		return nil, fmt.Errorf("generating article: %w", err)
+	}
+
+	return article, nil
+}
+
+// saveArticleToFile saves article to specified filename
+func (ap *ArticleProcessor) saveArticleToFile(article *Article, filename string) error {
+	log.Printf("  → Saving to: %s", filename)
+	return ap.saveArticle(filename, article)
 }
 
 // ProcessItemWithFilename processes a single article item with an optional existing filename
 func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFilename string) ProcessingResult {
-	// Skip if article for this URL already exists and overwrite is false
-	if existingFile := ap.FindExistingArticle(item.URL); existingFile != "" && !ap.overwrite {
-		log.Printf("Skipping %s: article exists (%s)", item.URL, existingFile)
+	// Generate filename early to check for existence (unless explicitly provided)
+	var filename string
+	if existingFilename != "" {
+		filename = existingFilename
+	} else {
+		// Generate deterministic filename using URL hash
+		slug := generateSlug(item.URL) // Use URL-based slug as placeholder
+		hash := generateURLHash(item.URL)
+		year := time.Now().Format("2006")
+		month := time.Now().Format("01")
+		filename = fmt.Sprintf("%s/%s/%s/%s-%s.md", ap.settings.OutputDirectory, year, month, slug, hash)
+	}
+
+	// Skip if file already exists and overwrite is false
+	if !ap.overwrite && ap.fileExists(filename) {
 		return ProcessingResult{
 			URL:      item.URL,
-			Success:  true,
-			Filename: existingFile,
+			Status:   StatusSkipped,
+			Filename: filename,
 		}
 	}
 
@@ -175,8 +267,9 @@ func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFi
 	sourceContent, err := ap.fetcher.FetchContent(item.URL)
 	if err != nil {
 		return ProcessingResult{
-			URL:   item.URL,
-			Error: fmt.Errorf("fetching source: %w", err),
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  fmt.Errorf("fetching source: %w", err),
 		}
 	}
 
@@ -185,8 +278,9 @@ func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFi
 	plan, err := ap.generatePlan(sourceContent)
 	if err != nil {
 		return ProcessingResult{
-			URL:   item.URL,
-			Error: fmt.Errorf("generating plan: %w", err),
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  fmt.Errorf("generating plan: %w", err),
 		}
 	}
 
@@ -195,27 +289,15 @@ func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFi
 	article, err := ap.generateArticle(sourceContent, plan, item.URL)
 	if err != nil {
 		return ProcessingResult{
-			URL:   item.URL,
-			Error: fmt.Errorf("generating article: %w", err),
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  fmt.Errorf("generating article: %w", err),
 		}
 	}
 
-	// Generate filename using article date or existing filename
-	var filename string
-	if existingFilename != "" {
-		filename = existingFilename
-	} else {
+	// Update filename with proper title-based slug if we generated a placeholder
+	if existingFilename == "" {
 		filename = ap.generateFilenameFromArticle(article)
-	}
-
-	// Check if file exists and skip if overwrite is false
-	if !ap.overwrite && ap.fileExists(filename) {
-		log.Printf("Skipping %s: file exists (%s)", item.URL, filename)
-		return ProcessingResult{
-			URL:      item.URL,
-			Success:  true,
-			Filename: filename,
-		}
 	}
 
 	// Save article
@@ -223,14 +305,15 @@ func (ap *ArticleProcessor) ProcessItemWithFilename(item ArticleItem, existingFi
 	err = ap.saveArticle(filename, article)
 	if err != nil {
 		return ProcessingResult{
-			URL:   item.URL,
-			Error: fmt.Errorf("saving article: %w", err),
+			URL:    item.URL,
+			Status: StatusError,
+			Error:  fmt.Errorf("saving article: %w", err),
 		}
 	}
 
 	return ProcessingResult{
 		URL:      item.URL,
-		Success:  true,
+		Status:   StatusSuccess,
 		Filename: filename,
 	}
 }
@@ -417,16 +500,28 @@ func (ap *ArticleProcessor) generateFilenameFromTitle(title string) string {
 // generateFilenameFromArticle creates a filename using the date from article frontmatter
 func (ap *ArticleProcessor) generateFilenameFromArticle(article *Article) string {
 	slug := generateSlugFromTitle(article.Title)
-	// Use article date in YYYY/MM/slug.md format
+	hash := generateURLHash(article.SourceURL)
+	// Use article date in YYYY/MM/slug-hash.md format
 	year := article.CreatedAt.Format("2006")
 	month := article.CreatedAt.Format("01")
-	return fmt.Sprintf("%s/%s/%s/%s.md", ap.settings.OutputDirectory, year, month, slug)
+	return fmt.Sprintf("%s/%s/%s/%s-%s.md", ap.settings.OutputDirectory, year, month, slug, hash)
 }
 
 // fileExists checks if a file already exists
 func (ap *ArticleProcessor) fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil
+}
+
+// findExistingByHash finds existing file by URL hash suffix
+func (ap *ArticleProcessor) findExistingByHash(url string) string {
+	hash := generateURLHash(url)
+	pattern := filepath.Join(ap.settings.OutputDirectory, "*/*", "*-"+hash+".md")
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		return ""
+	}
+	return matches[0] // Return first match
 }
 
 // FindExistingArticle checks if an article for the given URL already exists by checking frontmatter
@@ -541,6 +636,12 @@ func generateSlugFromTitle(title string) string {
 	}
 
 	return slug
+}
+
+// generateURLHash creates a short hash from a URL for idempotent filename generation
+func generateURLHash(url string) string {
+	h := sha256.Sum256([]byte(url))
+	return fmt.Sprintf("%x", h)[:8]
 }
 
 // loadPlannerSystemPrompt loads planner prompt and appends categories

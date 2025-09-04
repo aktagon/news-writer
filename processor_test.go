@@ -2,7 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPlanJSONUnmarshaling(t *testing.T) {
@@ -112,4 +116,195 @@ func TestInvalidJSONHandling(t *testing.T) {
 			t.Errorf("Expected error for invalid JSON: %s", invalidJSON)
 		}
 	}
+}
+
+func TestProcessItemWithFilename(t *testing.T) {
+	// Create a temporary file to test existing file behavior
+	tmpFile, err := os.CreateTemp("", "test-article-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	item := ArticleItem{URL: "https://example.com/test"}
+
+	ap := &ArticleProcessor{
+		overwrite: false,
+		settings: &Settings{
+			OutputDirectory: "articles",
+		},
+	}
+
+	result := ap.ProcessItemWithFilename(item, tmpFile.Name())
+
+	// Should skip processing since file exists and overwrite is false
+	if result.URL != item.URL {
+		t.Errorf("Expected URL '%s', got '%s'", item.URL, result.URL)
+	}
+	if result.Filename != tmpFile.Name() {
+		t.Errorf("Expected filename '%s', got '%s'", tmpFile.Name(), result.Filename)
+	}
+	if !result.Success {
+		t.Error("Expected success when file exists and overwrite is false")
+	}
+	if result.Error != nil {
+		t.Errorf("Expected no error, got %v", result.Error)
+	}
+}
+
+func TestFileExists(t *testing.T) {
+	ap := &ArticleProcessor{}
+
+	// Test with existing file
+	tmpFile, err := os.CreateTemp("", "test-exists-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	if !ap.fileExists(tmpFile.Name()) {
+		t.Error("fileExists should return true for existing file")
+	}
+
+	// Test with non-existing file
+	nonExistent := tmpFile.Name() + "-does-not-exist"
+	if ap.fileExists(nonExistent) {
+		t.Error("fileExists should return false for non-existing file")
+	}
+}
+
+func TestFindExistingByHash(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ap := &ArticleProcessor{
+		settings: &Settings{
+			OutputDirectory: tmpDir,
+		},
+	}
+
+	// Test URL
+	testURL := "https://example.com/test-article"
+	hash := generateURLHash(testURL)
+
+	// Create nested directory structure
+	yearDir := filepath.Join(tmpDir, "2025")
+	monthDir := filepath.Join(yearDir, "09")
+	err := os.MkdirAll(monthDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create directories: %v", err)
+	}
+
+	// Create test file with hash suffix
+	testFilename := filepath.Join(monthDir, "some-title-"+hash+".md")
+	file, err := os.Create(testFilename)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	file.Close()
+
+	// Test finding existing file by hash
+	found := ap.findExistingByHash(testURL)
+	if found != testFilename {
+		t.Errorf("Expected to find %s, got %s", testFilename, found)
+	}
+
+	// Test with non-existing hash
+	nonExistentURL := "https://example.com/non-existent"
+	found = ap.findExistingByHash(nonExistentURL)
+	if found != "" {
+		t.Errorf("Expected empty string for non-existent hash, got %s", found)
+	}
+}
+
+func TestHashBasedIdempotency(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ap := &ArticleProcessor{
+		overwrite: false,
+		settings: &Settings{
+			OutputDirectory: tmpDir,
+		},
+	}
+
+	// Test URL and hash
+	testURL := "https://example.com/test-article"
+	hash := generateURLHash(testURL)
+
+	// Create nested directory structure and existing file
+	yearDir := filepath.Join(tmpDir, "2025")
+	monthDir := filepath.Join(yearDir, "09")
+	err := os.MkdirAll(monthDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create directories: %v", err)
+	}
+
+	existingFile := filepath.Join(monthDir, "existing-title-"+hash+".md")
+	file, err := os.Create(existingFile)
+	if err != nil {
+		t.Fatalf("Failed to create existing file: %v", err)
+	}
+	file.Close()
+
+	// Test ProcessItem - should skip processing and return existing filename
+	item := ArticleItem{URL: testURL}
+	result := ap.ProcessItem(item)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %v", result.Error)
+	}
+	if result.Filename != existingFile {
+		t.Errorf("Expected filename %s, got %s", existingFile, result.Filename)
+	}
+	if result.URL != testURL {
+		t.Errorf("Expected URL %s, got %s", testURL, result.URL)
+	}
+
+	// Verify the behavior is truly idempotent - no new files created
+	matches, err := filepath.Glob(filepath.Join(tmpDir, "*/*", "*-"+hash+".md"))
+	if err != nil {
+		t.Fatalf("Error globbing files: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Errorf("Expected exactly 1 file with hash %s, found %d: %v", hash, len(matches), matches)
+	}
+}
+
+func TestIdempotencyBug(t *testing.T) {
+	// Test that demonstrates the idempotency bug:
+	// initial filename check uses URL hash, but final filename uses title slug
+
+	item := ArticleItem{URL: "https://example.com/test-article"}
+
+	ap := &ArticleProcessor{
+		overwrite: false,
+		settings: &Settings{
+			OutputDirectory: "articles",
+		},
+	}
+
+	// Generate the initial filename (used for existence check)
+	slug := generateSlug(item.URL)
+	hash := generateURLHash(item.URL)
+	year := "2025"
+	month := "09"
+	initialFilename := fmt.Sprintf("%s/%s/%s/%s-%s.md", ap.settings.OutputDirectory, year, month, slug, hash)
+
+	// Simulate what happens after the article is generated - filename uses title slug
+	mockArticle := &Article{
+		Title:     "Survey: A Third of Senior Developers Say Over Half Their Code is AI-Generated",
+		SourceURL: item.URL,
+		CreatedAt: time.Now(),
+	}
+	finalFilename := ap.generateFilenameFromArticle(mockArticle)
+
+	// These should be the same for idempotency to work, but they're not
+	if initialFilename == finalFilename {
+		t.Errorf("Bug not reproduced - filenames should be different but are the same: %s", initialFilename)
+	}
+
+	t.Logf("Initial filename (used for check): %s", initialFilename)
+	t.Logf("Final filename (actually saved):    %s", finalFilename)
+	t.Logf("This is why idempotency fails - the check uses one filename but saves to another!")
 }

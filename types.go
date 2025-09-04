@@ -47,10 +47,19 @@ type Article struct {
 	TargetAudience string    `json:"target_audience"`
 }
 
+// ProcessingStatus represents the outcome status of processing an article
+type ProcessingStatus string
+
+const (
+	StatusSuccess ProcessingStatus = "success"
+	StatusSkipped ProcessingStatus = "skipped"
+	StatusError   ProcessingStatus = "error"
+)
+
 // ProcessingResult tracks the outcome of processing each item
 type ProcessingResult struct {
 	URL      string
-	Success  bool
+	Status   ProcessingStatus
 	Filename string
 	Error    error
 }

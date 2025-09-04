@@ -166,15 +166,18 @@ func runProcessor(configSource string) {
 	// Report results
 	successful := 0
 	failed := 0
+	skipped := 0
 	for _, result := range results {
-		if result.Success {
+		if result.Status == StatusSuccess {
 			successful++
-		} else {
+		} else if result.Status == StatusError {
 			failed++
+		} else if result.Status == StatusSkipped {
+			skipped++
 		}
 	}
 
-	log.Printf("Processing complete: %d successful, %d failed", successful, failed)
+	log.Printf("Processing complete: %d successful, %d failed, %d skipped", successful, failed, skipped)
 
 	if failed > 0 {
 		os.Exit(1)
@@ -230,7 +233,7 @@ func handleRewriteMode(url, configPath string) {
 		item := ArticleItem{URL: url}
 		result := processor.ProcessItemWithFilename(item, existingFile)
 
-		if result.Success {
+		if result.Status == StatusSuccess {
 			log.Printf("✓ Rewritten: %s", result.Filename)
 		} else {
 			log.Fatalf("✗ Failed to rewrite %s: %v", result.URL, result.Error)
@@ -255,7 +258,7 @@ func handleRewriteMode(url, configPath string) {
 		item := ArticleItem{URL: url}
 		result := processor.ProcessItem(item)
 
-		if result.Success {
+		if result.Status == StatusSuccess {
 			log.Printf("✓ Created: %s", result.Filename)
 		} else {
 			log.Fatalf("✗ Failed to create %s: %v", result.URL, result.Error)
