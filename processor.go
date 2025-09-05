@@ -103,7 +103,7 @@ func NewArticleProcessor(apiKey string, overrides *ConfigOverrides) (*ArticlePro
 	}
 
 	// Create content fetcher
-	fetcher := NewContentFetcher()
+	fetcher := NewContentFetcher(settings.YouTube)
 
 	return &ArticleProcessor{
 		plannerAgent: plannerAgent,
@@ -710,7 +710,7 @@ func loadSettings(settingsPath string) (*Settings, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		// Return default settings if file doesn't exist
-		return &Settings{
+		settings := &Settings{
 			OutputDirectory: "articles",
 			TemplatePath:    filepath.Join(defaultConfigDir, "news-article-template.md"),
 			Agents: struct {
@@ -720,13 +720,31 @@ func loadSettings(settingsPath string) (*Settings, error) {
 				Planner: AgentSettings{MaxTokens: 2000, Temperature: 0.0},
 				Writer:  AgentSettings{MaxTokens: 3000, Temperature: 0.3},
 			},
-		}, nil
+		}
+
+		// Set YouTube settings from environment variables
+		if apiKey := os.Getenv("YOUTUBE_TRANSCRIPT_API_KEY"); apiKey != "" {
+			settings.YouTube.TranscriptAPIKey = apiKey
+		}
+		if apiURL := os.Getenv("YOUTUBE_TRANSCRIPT_API_URL"); apiURL != "" {
+			settings.YouTube.TranscriptAPIURL = apiURL
+		}
+
+		return settings, nil
 	}
 
 	var settings Settings
 	err = yaml.Unmarshal(data, &settings)
 	if err != nil {
 		return nil, err
+	}
+
+	// Override YouTube settings from environment variables
+	if apiKey := os.Getenv("YOUTUBE_TRANSCRIPT_API_KEY"); apiKey != "" {
+		settings.YouTube.TranscriptAPIKey = apiKey
+	}
+	if apiURL := os.Getenv("YOUTUBE_TRANSCRIPT_API_URL"); apiURL != "" {
+		settings.YouTube.TranscriptAPIURL = apiURL
 	}
 
 	return &settings, nil
@@ -743,6 +761,14 @@ func loadSettingsRequired(settingsPath string) (*Settings, error) {
 	err = yaml.Unmarshal(data, &settings)
 	if err != nil {
 		return nil, err
+	}
+
+	// Override YouTube settings from environment variables
+	if apiKey := os.Getenv("YOUTUBE_TRANSCRIPT_API_KEY"); apiKey != "" {
+		settings.YouTube.TranscriptAPIKey = apiKey
+	}
+	if apiURL := os.Getenv("YOUTUBE_TRANSCRIPT_API_URL"); apiURL != "" {
+		settings.YouTube.TranscriptAPIURL = apiURL
 	}
 
 	return &settings, nil

@@ -12,20 +12,29 @@ import (
 
 // ContentFetcher handles web content retrieval
 type ContentFetcher struct {
-	client *http.Client
+	client          *http.Client
+	youtubeSettings YouTubeSettings
 }
 
 // NewContentFetcher creates a new content fetcher
-func NewContentFetcher() *ContentFetcher {
+func NewContentFetcher(youtubeSettings YouTubeSettings) *ContentFetcher {
 	return &ContentFetcher{
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		youtubeSettings: youtubeSettings,
 	}
 }
 
 // FetchContent retrieves and processes content from a URL
 func (cf *ContentFetcher) FetchContent(url string) (string, error) {
+	if strings.Contains(url, "youtube.com") {
+		if cf.youtubeSettings.TranscriptAPIKey == "" || cf.youtubeSettings.TranscriptAPIURL == "" {
+			return "", fmt.Errorf("YouTube transcript settings missing. Please set the following environment variables:\n\nYOUTUBE_TRANSCRIPT_API_KEY=\"api-key-12345\"\nYOUTUBE_TRANSCRIPT_API_URL=\"https://us-central1-aktagon.cloudfunctions.net/get_youtube_transcript\"")
+		}
+		return GetTranscript(url, cf.youtubeSettings)
+	}
+
 	// Fetch raw HTML
 	html, err := cf.fetchHTML(url)
 	if err != nil {

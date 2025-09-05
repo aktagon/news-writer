@@ -145,8 +145,8 @@ func TestProcessItemWithFilename(t *testing.T) {
 	if result.Filename != tmpFile.Name() {
 		t.Errorf("Expected filename '%s', got '%s'", tmpFile.Name(), result.Filename)
 	}
-	if !result.Success {
-		t.Error("Expected success when file exists and overwrite is false")
+	if result.Status != StatusSkipped {
+		t.Error("Expected skipped when file exists and overwrite is false")
 	}
 	if result.Error != nil {
 		t.Errorf("Expected no error, got %v", result.Error)
@@ -251,8 +251,8 @@ func TestHashBasedIdempotency(t *testing.T) {
 	item := ArticleItem{URL: testURL}
 	result := ap.ProcessItem(item)
 
-	if !result.Success {
-		t.Errorf("Expected success, got error: %v", result.Error)
+	if result.Status != StatusSkipped {
+		t.Errorf("Expected skipped status, got %v with error: %v", result.Status, result.Error)
 	}
 	if result.Filename != existingFile {
 		t.Errorf("Expected filename %s, got %s", existingFile, result.Filename)

@@ -79,4 +79,12 @@ type Settings struct {
 		Planner AgentSettings `yaml:"planner"`
 		Writer  AgentSettings `yaml:"writer"`
 	} `yaml:"agents"`
+	YouTube YouTubeSettings `yaml:"youtube"`
+}
+
+// YouTubeSettings represents the YouTube-specific settings
+type YouTubeSettings struct {
+	TranscriptAPIKey string // Read from YOUTUBE_TRANSCRIPT_API_KEY env var
+	TranscriptAPIURL string // Read from YOUTUBE_TRANSCRIPT_API_URL env var
+	Retries          int    `yaml:"retries"`
 }
