@@ -1,0 +1,8 @@
+bin/
+news-writer
+articles/
+logs/
+.envrc
+*.log
+kanban/
+urls.txt

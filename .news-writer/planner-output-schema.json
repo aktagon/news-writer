@@ -1,0 +1,39 @@
+{
+  "name": "planner_output",
+  "description": "Schema for planner agent output containing article metadata",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "deck": {
+        "type": "string",
+        "description": "Brief 1-2 sentence summary/description (100-200 characters)"
+      },
+      "categories": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Leaf categories using forward slash format (e.g., Development/Programming, Technology/Innovation. 1-2 most relevant categories from the provided list."
+      },
+      "tags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "3-8 relevant technical tags in lowercase, hyphenated format, e.g., javascript, react"
+      },
+      "target": {
+        "type": "object",
+        "properties": {
+          "tone": { "type": "string" },
+          "audience": {
+            "type": "string",
+            "description": "Target audience description (e.g., 'Developers and tech leads evaluating LLM capabilities for production use')"
+          }
+        },
+        "required": ["tone", "audience"]
+      }
+    },
+    "required": ["title", "deck", "categories", "tags", "target"]
+  }
+}
