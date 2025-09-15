@@ -194,13 +194,18 @@ func (p *ArticleProcessor) extractDomain(rawURL string) string {
 	return parsedURL.Host
 }
 
-// generateFilename creates a hash-based filename
+// generateFilename creates a hash-based filename with year/month subdirectories
 func (p *ArticleProcessor) generateFilename(url, title string) string {
 	slug := p.generateSlug(title)
 	hash := p.generateURLHash(url)
 
+	// Create year/month subdirectories
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	outputDir := filepath.Join(p.config.Settings.OutputDirectory, year, month)
+
 	// Ensure output directory exists
-	outputDir := p.config.Settings.OutputDirectory
 	os.MkdirAll(outputDir, 0755)
 
 	return filepath.Join(outputDir, fmt.Sprintf("%s-%s.md", slug, hash))
@@ -227,24 +232,31 @@ func (p *ArticleProcessor) generateURLHash(url string) string {
 	return fmt.Sprintf("%x", hash)[:8]
 }
 
-// findExistingFile finds an existing article file by URL
+// findExistingFile finds an existing article file by URL (recursively)
 func (p *ArticleProcessor) findExistingFile(url string) string {
 	outputDir := p.config.Settings.OutputDirectory
 	urlHash := p.generateURLHash(url)
+	suffix := fmt.Sprintf("-%s.md", urlHash)
 
-	// Check if output directory exists
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		return ""
+	var existingFile string
+
+	// Walk the directory tree
+	err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(path, suffix) {
+			existingFile = path
+			return filepath.SkipDir // Stop searching once found
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Error walking directory: %v", err)
 	}
 
-	// Look for files with matching hash
-	pattern := filepath.Join(outputDir, fmt.Sprintf("*-%s.md", urlHash))
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		return ""
-	}
-
-	return matches[0]
+	return existingFile
 }
 
 // saveArticle saves the article to a file

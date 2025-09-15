@@ -117,6 +117,46 @@ func TestSaveArticle(t *testing.T) {
 	}
 }
 
+func TestGenerateFilename(t *testing.T) {
+	// Create a processor with mock config
+	config := &Config{
+		Settings: &Settings{
+			OutputDirectory: "articles",
+		},
+	}
+	p := &ArticleProcessor{
+		config: config,
+	}
+	tempDir := t.TempDir()
+
+	// Change to temp directory for test
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	os.Chdir(tempDir)
+
+	// Generate filename
+	filename := p.generateFilename("https://example.com", "Test Title")
+
+	// Check for year/month in path
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	expectedDir := filepath.Join("articles", year, month)
+
+	if !strings.HasPrefix(filename, expectedDir) {
+		t.Errorf("expected filename to be in %s, got %s", expectedDir, filename)
+	}
+
+	// Check for slug and hash
+	slug := "test-title"
+	hash := p.generateURLHash("https://example.com")
+	expectedSuffix := slug + "-" + hash + ".md"
+
+	if !strings.HasSuffix(filename, expectedSuffix) {
+		t.Errorf("expected filename to have suffix %s, got %s", expectedSuffix, filename)
+	}
+}
+
 func TestFindExistingFile(t *testing.T) {
 	// Create a processor with mock config
 	config := &Config{
@@ -134,6 +174,9 @@ func TestFindExistingFile(t *testing.T) {
 	defer os.Chdir(oldWd)
 	os.Chdir(tempDir)
 
+	// Create articles directory
+	os.MkdirAll("articles", 0755)
+
 	// Test non-existent file
 	result := p.findExistingFile("https://nonexistent.com")
 	if result != "" {
@@ -141,7 +184,6 @@ func TestFindExistingFile(t *testing.T) {
 	}
 
 	// Create test file
-	os.MkdirAll("articles", 0755)
 	hash := p.generateURLHash("https://example.com")
 	testFile := filepath.Join("articles", "test-"+hash+".md")
 	os.WriteFile(testFile, []byte("test"), 0644)
@@ -150,6 +192,37 @@ func TestFindExistingFile(t *testing.T) {
 	result = p.findExistingFile("https://example.com")
 	if result != testFile {
 		t.Errorf("expected %s, got %s", testFile, result)
+	}
+}
+
+func TestFindExistingFileRecursive(t *testing.T) {
+	// Create a processor with mock config
+	config := &Config{
+		Settings: &Settings{
+			OutputDirectory: "articles",
+		},
+	}
+	p := &ArticleProcessor{
+		config: config,
+	}
+	tempDir := t.TempDir()
+
+	// Change to temp directory for test
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	os.Chdir(tempDir)
+
+	// Create test file in a nested directory
+	hash := p.generateURLHash("https://example.com/nested")
+	nestedDir := filepath.Join("articles", "2025", "09")
+	os.MkdirAll(nestedDir, 0755)
+	nestedFile := filepath.Join(nestedDir, "nested-test-"+hash+".md")
+	os.WriteFile(nestedFile, []byte("nested test"), 0644)
+
+	// Test existing file (recursive)
+	result := p.findExistingFile("https://example.com/nested")
+	if result != nestedFile {
+		t.Errorf("expected %s, got %s", nestedFile, result)
 	}
 }
 
