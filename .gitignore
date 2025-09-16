@@ -1,4 +1,5 @@
 bin/
+news-writer
 .news-writer/
 articles/
 logs/

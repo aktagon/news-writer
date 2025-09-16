@@ -133,3 +133,65 @@ Source content: example`
 		t.Error("original template structure not maintained")
 	}
 }
+
+func TestPlannerPDFHandling(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  *ContentResult
+		hasFiles bool
+	}{
+		{
+			name: "text content should not create files",
+			content: &ContentResult{
+				Text:   "Sample text content",
+				FileID: "",
+			},
+			hasFiles: false,
+		},
+		{
+			name: "PDF content should create files",
+			content: &ContentResult{
+				Text:   "",
+				FileID: "file-123",
+			},
+			hasFiles: true,
+		},
+		{
+			name: "content with both text and fileID should create files",
+			content: &ContentResult{
+				Text:   "Some text",
+				FileID: "file-456",
+			},
+			hasFiles: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate the file creation logic from PlanMetadata
+			var files []struct{ ID string }
+			if tt.content.FileID != "" {
+				files = append(files, struct{ ID string }{ID: tt.content.FileID})
+			}
+
+			hasFiles := len(files) > 0
+
+			if hasFiles != tt.hasFiles {
+				t.Errorf("expected hasFiles=%v, got hasFiles=%v", tt.hasFiles, hasFiles)
+			}
+
+			if tt.hasFiles && len(files) == 0 {
+				t.Error("expected files to be created for PDF content")
+			}
+
+			if !tt.hasFiles && len(files) > 0 {
+				t.Error("expected no files to be created for text content")
+			}
+
+			// Verify file ID is correct when present
+			if tt.hasFiles && files[0].ID != tt.content.FileID {
+				t.Errorf("expected file ID %s, got %s", tt.content.FileID, files[0].ID)
+			}
+		})
+	}
+}

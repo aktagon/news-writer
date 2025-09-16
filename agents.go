@@ -133,6 +133,12 @@ func (am *AgentManager) PlanMetadata(url string, content *ContentResult) (*Front
 	// Get schema for structured output
 	schema := am.config.GetPlannerSchema()
 
+	// Handle PDF files
+	var files []types.File
+	if content.FileID != "" {
+		files = append(files, types.File{ID: content.FileID})
+	}
+
 	// Use structured output with schema
 	settings := types.RequestSettings{
 		Model:       am.config.Settings.Agents.Planner.Model,
@@ -141,7 +147,7 @@ func (am *AgentManager) PlanMetadata(url string, content *ContentResult) (*Front
 		TopK:        0,
 		TopP:        0.0,
 	}
-	response, err := anthropic.PromptWithSettings(systemPrompt, userPrompt, schema, am.apiKey, settings)
+	response, err := anthropic.PromptWithSettings(systemPrompt, userPrompt, schema, am.apiKey, settings, files...)
 	if err != nil {
 		return nil, fmt.Errorf("planner agent failed: %w", err)
 	}
