@@ -1,4 +1,4 @@
-module github.com/aktagon/news-writer/v2
+module github.com/aktagon/news-writer
 
 go 1.24.0
 

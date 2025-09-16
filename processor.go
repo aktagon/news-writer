@@ -116,30 +116,67 @@ func (p *ArticleProcessor) ProcessURL(url string, rewrite bool) (string, error) 
 	return filename, nil
 }
 
-// loadURLsFromFile loads URLs from YAML file
-func (p *ArticleProcessor) loadURLsFromFile(configPath string) ([]string, error) {
+// ArticleItem represents a single article URL in the configuration
+type ArticleItem struct {
+	URL string `yaml:"url"`
+}
+
+// URLConfig represents the YAML configuration structure for URL loading
+type URLConfig struct {
+	Items []ArticleItem `yaml:"items"`
+}
+
+// loadConfig loads configuration from YAML file
+func (ap *ArticleProcessor) loadConfig(configPath string) (*URLConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	type Source struct {
-		URL string `yaml:"url"`
-	}
-	type Config struct {
-		Sources []Source `yaml:"sources"`
+	var config URLConfig
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("parsing YAML configuration: %w", err)
 	}
 
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("parsing YAML: %w", err)
+	// Validate configuration structure
+	if err := ap.validateConfig(&config, configPath); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// validateConfig validates the loaded configuration structure
+func (ap *ArticleProcessor) validateConfig(config *URLConfig, configPath string) error {
+	if len(config.Items) == 0 {
+		return fmt.Errorf("configuration is wrong. Example:\nitems:\n  - url: \"https://example.com/article1\"")
+	}
+
+	// Validate each item has a URL
+	for i, item := range config.Items {
+		url := strings.TrimSpace(item.URL)
+		if url == "" {
+			return fmt.Errorf("item %d has empty URL", i+1)
+		}
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			return fmt.Errorf("item %d has invalid URL: %s", i+1, url)
+		}
+	}
+
+	return nil
+}
+
+// loadURLsFromFile loads URLs from YAML file
+func (p *ArticleProcessor) loadURLsFromFile(configPath string) ([]string, error) {
+	config, err := p.loadConfig(configPath)
+	if err != nil {
+		return nil, err
 	}
 
 	var urls []string
-	for _, source := range config.Sources {
-		if source.URL != "" && (strings.HasPrefix(source.URL, "http://") || strings.HasPrefix(source.URL, "https://")) {
-			urls = append(urls, source.URL)
-		}
+	for _, item := range config.Items {
+		urls = append(urls, item.URL)
 	}
 
 	return urls, nil

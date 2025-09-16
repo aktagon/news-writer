@@ -93,8 +93,25 @@ func (h *PDFHandler) CanHandle(url string, resp *http.Response) bool {
 }
 
 func (h *PDFHandler) Handle(url string, resp *http.Response) (*ContentResult, error) {
-	// Upload PDF to Anthropic for processing
-	file, err := anthropic.UploadFile(url, h.apiKey)
+	// Download PDF content to a temporary file
+	tempFile, err := os.CreateTemp("", "pdf-*.pdf")
+	if err != nil {
+		return nil, fmt.Errorf("creating temporary file: %w", err)
+	}
+	defer os.Remove(tempFile.Name()) // Clean up temp file
+	defer tempFile.Close()
+
+	// Copy PDF content from response to temp file
+	_, err = io.Copy(tempFile, resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("downloading PDF content: %w", err)
+	}
+
+	// Close the file so it can be opened by UploadFile
+	tempFile.Close()
+
+	// Upload PDF file to Anthropic for processing
+	file, err := anthropic.UploadFile(tempFile.Name(), h.apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("uploading PDF file: %w", err)
 	}

@@ -231,29 +231,34 @@ func TestLoadURLsFromFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name     string
-		content  string
-		expected []string
+		name        string
+		content     string
+		expected    []string
+		expectError bool
 	}{
 		{
 			"basic urls",
-			"sources:\n  - url: \"https://example.com\"\n  - url: \"https://test.com\"",
+			"items:\n  - url: \"https://example.com\"\n  - url: \"https://test.com\"",
 			[]string{"https://example.com", "https://test.com"},
+			false,
 		},
 		{
 			"with empty url",
-			"sources:\n  - url: \"https://example.com\"\n  - url: \"\"\n  - url: \"https://test.com\"",
-			[]string{"https://example.com", "https://test.com"},
+			"items:\n  - url: \"https://example.com\"\n  - url: \"\"\n  - url: \"https://test.com\"",
+			nil,
+			true,
 		},
 		{
 			"invalid urls",
-			"sources:\n  - url: \"https://example.com\"\n  - url: \"invalid-url\"\n  - url: \"ftp://test.com\"",
-			[]string{"https://example.com"},
+			"items:\n  - url: \"https://example.com\"\n  - url: \"invalid-url\"\n  - url: \"ftp://test.com\"",
+			nil,
+			true,
 		},
 		{
 			"empty sources",
-			"sources: []",
-			[]string{},
+			"items: []",
+			nil,
+			true,
 		},
 	}
 
@@ -263,6 +268,14 @@ func TestLoadURLsFromFile(t *testing.T) {
 			os.WriteFile(filename, []byte(tt.content), 0644)
 
 			result, err := p.loadURLsFromFile(filename)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				}
+				return
+			}
+
 			if err != nil {
 				t.Fatalf("loadURLsFromFile() error = %v", err)
 			}
@@ -274,6 +287,70 @@ func TestLoadURLsFromFile(t *testing.T) {
 			for i, url := range result {
 				if i >= len(tt.expected) || url != tt.expected[i] {
 					t.Errorf("URL %d: got %q, want %q", i, url, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestValidateConfig(t *testing.T) {
+	ap := &ArticleProcessor{}
+
+	tests := []struct {
+		name        string
+		config      *URLConfig
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "empty config",
+			config:      &URLConfig{Items: []ArticleItem{}},
+			expectError: true,
+			errorMsg:    "configuration is wrong",
+		},
+		{
+			name: "valid config",
+			config: &URLConfig{Items: []ArticleItem{
+				{URL: "https://example.com/article1"},
+				{URL: "http://example.com/article2"},
+			}},
+			expectError: false,
+		},
+		{
+			name: "empty URL",
+			config: &URLConfig{Items: []ArticleItem{
+				{URL: "https://example.com/article1"},
+				{URL: "   "},
+			}},
+			expectError: true,
+			errorMsg:    "item 2 has empty URL",
+		},
+		{
+			name: "invalid URL format",
+			config: &URLConfig{Items: []ArticleItem{
+				{URL: "https://example.com/article1"},
+				{URL: "ftp://example.com/article2"},
+			}},
+			expectError: true,
+			errorMsg:    "item 2 has invalid URL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ap.validateConfig(tt.config, "test-config.yaml")
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("expected error to contain '%s', got: %s", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error but got: %s", err.Error())
 				}
 			}
 		})
